@@ -9,7 +9,7 @@
     body { background-color: #f8f9fa; padding: 25px 10px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     .card { border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.06); margin-bottom: 20px; }
     .table th { background-color: #f1f3f5; font-size: 0.85rem; text-transform: uppercase; }
-    .admin-banner { background-color: #212529; color: #ffc107; padding: 8px 16px; border-radius: 6px; font-weight: 500; }
+    .admin-banner { background-color: #212529; color: #ffc107; padding: 6px 12px; border-radius: 6px; font-weight: 500; }
   </style>
 </head>
 <body>
@@ -21,10 +21,13 @@
       <h5>Lookup Documents by Phone</h5>
       <div class="row g-2 align-items-center mt-1">
         <div class="col-md-8">
-          <input type="tel" id="searchPhone" class="form-control" placeholder="Enter mobile number (e.g. 96891234567)">
+          <input type="tel" id="searchPhone" class="form-control" placeholder="Enter mobile number">
         </div>
         <div class="col-md-4">
-          <button class="btn btn-primary w-100" id="lookupBtn" onclick="handleLookup()">Search Records</button>
+          <button class="btn btn-primary w-100" id="lookupBtn" onclick="handleLookup()">
+            <span id="lookupSpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
+            Search Records
+          </button>
         </div>
       </div>
     </div>
@@ -38,7 +41,10 @@
           <input type="text" id="otpInput" class="form-control" maxlength="6" placeholder="Enter 6-digit OTP">
         </div>
         <div class="col-md-3">
-          <button class="btn btn-success w-100" id="verifyOtpBtn" onclick="verifyOtp()">Verify & Unlock</button>
+          <button class="btn btn-success w-100" id="verifyOtpBtn" onclick="verifyOtp()">
+            <span id="verifySpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
+            Verify & Unlock
+          </button>
         </div>
         <div class="col-md-3">
           <button class="btn btn-outline-secondary w-100" onclick="handleLookup()">Resend OTP</button>
@@ -47,14 +53,14 @@
       <div id="otpErrorAlert" class="alert alert-danger d-none mt-2 p-2 small"></div>
     </div>
 
-    <!-- 2. Records Grid & Filters -->
+    <!-- 2. Records Grid -->
     <div class="card p-4 d-none" id="recordsSection">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <h5 class="mb-0" id="gridTitle">Your Document Records</h5>
         <div id="quotaBadge"></div>
       </div>
 
-      <!-- Admin Multi-level Filter Bar (Displayed only for Admins) -->
+      <!-- Admin Multi-level Filter Bar -->
       <div id="adminFilterBar" class="d-none bg-light border rounded p-3 mb-3">
         <div class="d-flex align-items-center mb-2">
           <span class="admin-banner me-2">Admin Mode: All System Documents</span>
@@ -113,11 +119,11 @@
       </div>
     </div>
 
-    <!-- Upgrade Limit Notice (Shown when 5 items reached for free users) -->
+    <!-- Upgrade Limit Card -->
     <div class="card p-4 d-none border-warning bg-light" id="upgradeCard">
       <div class="text-center py-2">
         <h5 class="text-dark fw-bold">Free Limit Reached (5/5 Documents)</h5>
-        <p class="text-muted mb-3">You have reached the maximum quota of 5 document entries for the free version. To get full unlimited access, please contact the developer.</p>
+        <p class="text-muted mb-3">You have reached the maximum quota of 5 document entries for the free version. To unlock unlimited entries, please contact the developer.</p>
         <a id="developerMailBtn" href="#" class="btn btn-warning fw-bold px-4">Contact Developer for Full Access</a>
       </div>
     </div>
@@ -170,7 +176,10 @@
             </select>
           </div>
           <div class="col-12 mt-3">
-            <button type="submit" id="saveBtn" class="btn btn-success">Save Document</button>
+            <button type="submit" id="saveBtn" class="btn btn-success">
+              <span id="saveSpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
+              Save Document
+            </button>
           </div>
         </div>
       </form>
@@ -237,25 +246,25 @@
 
     async function handleLookup() {
       const phone = document.getElementById("searchPhone").value.trim();
-      const lookupBtn = document.getElementById("lookupBtn");
+      const btn = document.getElementById("lookupBtn");
+      const sp = document.getElementById("lookupSpinner");
       if (!phone) { alert("Please enter a phone number."); return; }
 
       activePhone = phone;
-      lookupBtn.disabled = true;
-      lookupBtn.innerText = "Checking...";
+      btn.disabled = true;
+      sp.classList.remove("d-none");
 
       try {
         const res = await apiRequest("initiateLookup", { phone: phone });
-        lookupBtn.disabled = false;
-        lookupBtn.innerText = "Search Records";
+        btn.disabled = false;
+        sp.classList.add("d-none");
 
         if (res.developerEmail) devEmail = res.developerEmail;
         isUserAdmin = res.isAdmin || false;
 
         if (res.requiresOtp) {
           document.getElementById("otpCard").classList.remove("d-none");
-          document.getElementById("otpNotice").innerText = 
-            `A security verification code has been sent to ${res.maskedEmail}. Please enter it to unlock records.`;
+          document.getElementById("otpNotice").innerText = `Verification code sent to ${res.maskedEmail}.`;
           document.getElementById("recordsSection").classList.add("d-none");
           document.getElementById("addDocSection").classList.add("d-none");
           document.getElementById("upgradeCard").classList.add("d-none");
@@ -264,15 +273,16 @@
           renderGrid([], false);
         }
       } catch (err) {
-        lookupBtn.disabled = false;
-        lookupBtn.innerText = "Search Records";
-        alert("Error connecting to server.");
+        btn.disabled = false;
+        sp.classList.add("d-none");
+        alert("Server response delayed. Please try again.");
       }
     }
 
     async function verifyOtp() {
       const otp = document.getElementById("otpInput").value.trim();
-      const verifyBtn = document.getElementById("verifyOtpBtn");
+      const btn = document.getElementById("verifyOtpBtn");
+      const sp = document.getElementById("verifySpinner");
       const errBox = document.getElementById("otpErrorAlert");
 
       if (!otp || otp.length !== 6) {
@@ -281,13 +291,13 @@
         return;
       }
 
-      verifyBtn.disabled = true;
-      verifyBtn.innerText = "Verifying...";
+      btn.disabled = true;
+      sp.classList.remove("d-none");
       errBox.classList.add("d-none");
 
       const res = await apiRequest("verifyOtp", { phone: activePhone, otp: otp });
-      verifyBtn.disabled = false;
-      verifyBtn.innerText = "Verify & Unlock";
+      btn.disabled = false;
+      sp.classList.add("d-none");
 
       if (res.success) {
         document.getElementById("otpCard").classList.add("d-none");
@@ -304,11 +314,9 @@
       allFetchedDocs = docs;
       document.getElementById("recordsSection").classList.remove("d-none");
 
-      // Configure developer mail button
-      const mailLink = `mailto:${devEmail}?subject=Full%20Access%20Request%20-%20Document%20Expiry%20System&body=Hello,%0D%0AI%20would%20like%20to%20request%20full%20unlimited%20access%20for%20my%20phone%20number:%20${activePhone}`;
+      const mailLink = `mailto:${devEmail}?subject=Full%20Access%20Request%20-%20Document%20Expiry%20System&body=Hello,%0D%0AI%20would%20like%20to%20request%20full%20access%20for%20phone:%20${activePhone}`;
       document.getElementById("developerMailBtn").href = mailLink;
 
-      // Handle Quotas and Admin Elements
       const upgradeCard = document.getElementById("upgradeCard");
       const addSection = document.getElementById("addDocSection");
       const quotaBadge = document.getElementById("quotaBadge");
@@ -326,11 +334,10 @@
         thPhone.classList.add("d-none");
         adminFilterBar.classList.add("d-none");
 
-        // 5-entry limit enforcement
         if (docs.length >= 5) {
           quotaBadge.innerHTML = `<span class="badge bg-danger p-2">Free Limit: 5 / 5 entries used</span>`;
           upgradeCard.classList.remove("d-none");
-          addSection.classList.add("d-none"); // Hide add form
+          addSection.classList.add("d-none");
         } else {
           quotaBadge.innerHTML = `<span class="badge bg-secondary p-2">Free Plan: ${docs.length} / 5 entries used</span>`;
           upgradeCard.classList.add("d-none");
@@ -349,9 +356,7 @@
       const select = document.getElementById("filterDocType");
       const types = Array.from(new Set(docs.map(d => d.docType).filter(Boolean)));
       select.innerHTML = '<option value="">All Document Types</option>';
-      types.forEach(t => {
-        select.innerHTML += `<option value="${t}">${t}</option>`;
-      });
+      types.forEach(t => { select.innerHTML += `<option value="${t}">${t}</option>`; });
     }
 
     function applyFilters() {
@@ -365,7 +370,6 @@
       now.setHours(0,0,0,0);
 
       const filtered = allFetchedDocs.filter(doc => {
-        // Keyword search across person, docId, phone
         const matchesKeyword = !keyword || 
           String(doc.personName).toLowerCase().includes(keyword) || 
           String(doc.docId).toLowerCase().includes(keyword) || 
@@ -374,7 +378,6 @@
         const matchesType = !type || doc.docType === type;
         const matchesRelation = !relation || doc.relationship === relation;
 
-        // Expiry calculation for status filter
         const exp = new Date(doc.expiryDate);
         exp.setHours(0,0,0,0);
         const diffDays = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
@@ -387,7 +390,6 @@
         else if (diffDays <= doc.alertDays) calculatedStatus = "EXPIRING";
 
         const matchesStatus = !statusFilter || calculatedStatus === statusFilter;
-
         return matchesKeyword && matchesType && matchesRelation && matchesStatus;
       });
 
@@ -400,7 +402,7 @@
       tbody.innerHTML = "";
 
       if (docs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="${isUserAdmin ? 8 : 7}" class="text-center text-muted">No documents found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${isUserAdmin ? 8 : 7}" class="text-center text-muted py-3">No documents found.</td></tr>`;
         return;
       }
 
@@ -451,10 +453,11 @@
       });
     }
 
+    // Toggle Alert: Single Trip
     async function toggleStatus(row, currentStatus) {
       if (!confirm(`Are you sure you want to ${currentStatus === "STOPPED" ? "resume" : "stop"} alerts for this document?`)) return;
-      await apiRequest("toggleStatus", { row: row, status: currentStatus });
-      refreshData();
+      const res = await apiRequest("toggleStatus", { phone: activePhone, row: row, status: currentStatus });
+      if (res.success) renderGrid(res.docs, isUserAdmin);
     }
 
     function openSnoozeModal(doc, maxDays) {
@@ -468,6 +471,7 @@
 
     function setQuickSnooze(days) { document.getElementById("customSnoozeDays").value = days; }
 
+    // Snooze: Single Trip
     async function confirmSnooze() {
       const days = parseInt(document.getElementById("customSnoozeDays").value, 10);
       const alertBox = document.getElementById("snoozeAlert");
@@ -482,24 +486,26 @@
       btn.disabled = true;
       btn.innerText = "Applying...";
 
-      const res = await apiRequest("snooze", { row: currentSnoozeTarget.row, days: days });
+      const res = await apiRequest("snooze", { phone: activePhone, row: currentSnoozeTarget.row, days: days });
       btn.disabled = false;
       btn.innerText = "Apply Snooze";
 
       if (res.success) {
         snoozeModalInstance.hide();
-        refreshData();
+        renderGrid(res.docs, isUserAdmin);
       } else {
         alertBox.innerText = res.message;
         alertBox.classList.remove("d-none");
       }
     }
 
+    // Add Document: Single Trip
     async function submitDoc(e) {
       e.preventDefault();
-      const saveBtn = document.getElementById("saveBtn");
-      saveBtn.disabled = true;
-      saveBtn.innerText = "Saving...";
+      const btn = document.getElementById("saveBtn");
+      const sp = document.getElementById("saveSpinner");
+      btn.disabled = true;
+      sp.classList.remove("d-none");
 
       const payload = {
         phone: activePhone,
@@ -513,21 +519,16 @@
       };
 
       const res = await apiRequest("addDocument", payload);
-      saveBtn.disabled = false;
-      saveBtn.innerText = "Save Document";
+      btn.disabled = false;
+      sp.classList.add("d-none");
 
       if (res.success) {
         document.getElementById("docForm").reset();
         document.getElementById("formEmail").value = payload.email;
-        refreshData();
+        renderGrid(res.docs, isUserAdmin);
       } else {
         alert(res.message);
       }
-    }
-
-    async function refreshData() {
-      const res = await apiRequest("getDocs", { phone: activePhone });
-      renderGrid(res.docs, isUserAdmin);
     }
   </script>
 </body>
