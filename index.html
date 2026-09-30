@@ -3,24 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document Expiry Portal</title>
+  <title>Document(s) Expiry Notification System</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body { background-color: #f8f9fa; padding: 25px 10px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     .card { border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.06); margin-bottom: 20px; }
     .table th { background-color: #f1f3f5; font-size: 0.85rem; text-transform: uppercase; }
+    .admin-banner { background-color: #212529; color: #ffc107; padding: 8px 16px; border-radius: 6px; font-weight: 500; }
   </style>
 </head>
 <body>
-  <div class="container" style="max-width: 980px;">
-    <h3 class="mb-4 text-center fw-bold text-dark">Document Expiry & Renewal Portal</h3>
+  <div class="container" style="max-width: 1050px;">
+    <h3 class="mb-4 text-center fw-bold text-dark">Document(s) Expiry Notification System</h3>
 
     <!-- 1. Phone Lookup -->
     <div class="card p-4">
       <h5>Lookup Documents by Phone</h5>
       <div class="row g-2 align-items-center mt-1">
         <div class="col-md-8">
-          <input type="tel" id="searchPhone" class="form-control" placeholder="Enter mobile number">
+          <input type="tel" id="searchPhone" class="form-control" placeholder="Enter mobile number (e.g. 96891234567)">
         </div>
         <div class="col-md-4">
           <button class="btn btn-primary w-100" id="lookupBtn" onclick="handleLookup()">Search Records</button>
@@ -28,7 +29,7 @@
       </div>
     </div>
 
-    <!-- 1.5 OTP Verification (Hidden by default) -->
+    <!-- 1.5 OTP Verification -->
     <div class="card p-4 d-none border-primary" id="otpCard">
       <h5 class="text-primary">Verification Required</h5>
       <p class="text-muted small mb-2" id="otpNotice"></p>
@@ -46,13 +47,58 @@
       <div id="otpErrorAlert" class="alert alert-danger d-none mt-2 p-2 small"></div>
     </div>
 
-    <!-- 2. Records Grid -->
+    <!-- 2. Records Grid & Filters -->
     <div class="card p-4 d-none" id="recordsSection">
-      <h5>Your Document Records</h5>
-      <div class="table-responsive mt-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="mb-0" id="gridTitle">Your Document Records</h5>
+        <div id="quotaBadge"></div>
+      </div>
+
+      <!-- Admin Multi-level Filter Bar (Displayed only for Admins) -->
+      <div id="adminFilterBar" class="d-none bg-light border rounded p-3 mb-3">
+        <div class="d-flex align-items-center mb-2">
+          <span class="admin-banner me-2">Admin Mode: All System Documents</span>
+          <span class="text-muted small" id="adminTotalCount"></span>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-3">
+            <input type="text" id="filterKeyword" class="form-control form-control-sm" placeholder="Search Name, ID, or Phone" oninput="applyFilters()">
+          </div>
+          <div class="col-md-3">
+            <select id="filterDocType" class="form-select form-select-sm" onchange="applyFilters()">
+              <option value="">All Document Types</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <select id="filterRelation" class="form-select form-select-sm" onchange="applyFilters()">
+              <option value="">All Relationships</option>
+              <option value="Self">Self</option>
+              <option value="Spouse">Spouse</option>
+              <option value="Son">Son</option>
+              <option value="Daughter">Daughter</option>
+              <option value="Father">Father</option>
+              <option value="Mother">Mother</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <select id="filterStatus" class="form-select form-select-sm" onchange="applyFilters()">
+              <option value="">All Expiry Statuses</option>
+              <option value="ACTIVE">Active</option>
+              <option value="EXPIRING">Expiring Soon</option>
+              <option value="EXPIRED">Expired</option>
+              <option value="SNOOZED">Snoozed</option>
+              <option value="STOPPED">Alerts Stopped</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-responsive">
         <table class="table table-bordered table-hover align-middle">
           <thead>
             <tr>
+              <th id="thPhone" class="d-none">User Phone</th>
               <th>Person</th>
               <th>Relation</th>
               <th>Doc Type</th>
@@ -67,7 +113,16 @@
       </div>
     </div>
 
-    <!-- 3. Add Document -->
+    <!-- Upgrade Limit Notice (Shown when 5 items reached for free users) -->
+    <div class="card p-4 d-none border-warning bg-light" id="upgradeCard">
+      <div class="text-center py-2">
+        <h5 class="text-dark fw-bold">Free Limit Reached (5/5 Documents)</h5>
+        <p class="text-muted mb-3">You have reached the maximum quota of 5 document entries for the free version. To get full unlimited access, please contact the developer.</p>
+        <a id="developerMailBtn" href="#" class="btn btn-warning fw-bold px-4">Contact Developer for Full Access</a>
+      </div>
+    </div>
+
+    <!-- 3. Add Document Form -->
     <div class="card p-4 d-none" id="addDocSection">
       <h5>Add Document (Self or Dependent)</h5>
       <form id="docForm" onsubmit="submitDoc(event)">
@@ -94,7 +149,7 @@
           </div>
           <div class="col-md-6">
             <label class="form-label">Document Type</label>
-            <input type="text" id="docType" class="form-control" required placeholder="e.g. Passport, License">
+            <input type="text" id="docType" class="form-control" required placeholder="e.g. Passport, License, ID">
           </div>
           <div class="col-md-6">
             <label class="form-label">Document ID</label>
@@ -161,8 +216,11 @@
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxNasQkrC9GZCoILnaktL-Lw3VBbQMAqHmvy-IBOo5MMpDZwCXybcbF1ZRTZRhhHusK/exec";
 
     let activePhone = "";
+    let isUserAdmin = false;
+    let allFetchedDocs = [];
     let currentSnoozeTarget = null;
     let snoozeModalInstance = null;
+    let devEmail = "developer@example.com";
 
     document.addEventListener("DOMContentLoaded", function() {
       snoozeModalInstance = new bootstrap.Modal(document.getElementById('snoozeModal'));
@@ -191,14 +249,19 @@
         lookupBtn.disabled = false;
         lookupBtn.innerText = "Search Records";
 
+        if (res.developerEmail) devEmail = res.developerEmail;
+        isUserAdmin = res.isAdmin || false;
+
         if (res.requiresOtp) {
           document.getElementById("otpCard").classList.remove("d-none");
-          document.getElementById("otpNotice").innerText = `Existing records detected. An OTP was sent to ${res.maskedEmail}.`;
+          document.getElementById("otpNotice").innerText = 
+            `A security verification code has been sent to ${res.maskedEmail}. Please enter it to unlock records.`;
           document.getElementById("recordsSection").classList.add("d-none");
           document.getElementById("addDocSection").classList.add("d-none");
+          document.getElementById("upgradeCard").classList.add("d-none");
         } else {
           document.getElementById("otpCard").classList.add("d-none");
-          renderGrid([]);
+          renderGrid([], false);
         }
       } catch (err) {
         lookupBtn.disabled = false;
@@ -228,77 +291,170 @@
 
       if (res.success) {
         document.getElementById("otpCard").classList.add("d-none");
-        renderGrid(res.docs);
+        isUserAdmin = res.isAdmin;
+        if (res.developerEmail) devEmail = res.developerEmail;
+        renderGrid(res.docs, isUserAdmin);
       } else {
         errBox.innerText = res.message;
         errBox.classList.remove("d-none");
       }
     }
 
-    function renderGrid(docs) {
+    function renderGrid(docs, isAdmin) {
+      allFetchedDocs = docs;
       document.getElementById("recordsSection").classList.remove("d-none");
-      document.getElementById("addDocSection").classList.remove("d-none");
 
+      // Configure developer mail button
+      const mailLink = `mailto:${devEmail}?subject=Full%20Access%20Request%20-%20Document%20Expiry%20System&body=Hello,%0D%0AI%20would%20like%20to%20request%20full%20unlimited%20access%20for%20my%20phone%20number:%20${activePhone}`;
+      document.getElementById("developerMailBtn").href = mailLink;
+
+      // Handle Quotas and Admin Elements
+      const upgradeCard = document.getElementById("upgradeCard");
+      const addSection = document.getElementById("addDocSection");
+      const quotaBadge = document.getElementById("quotaBadge");
+      const adminFilterBar = document.getElementById("adminFilterBar");
+      const thPhone = document.getElementById("thPhone");
+
+      if (isAdmin) {
+        quotaBadge.innerHTML = `<span class="badge bg-dark text-warning p-2">Administrator Access</span>`;
+        adminFilterBar.classList.remove("d-none");
+        thPhone.classList.remove("d-none");
+        upgradeCard.classList.add("d-none");
+        addSection.classList.remove("d-none");
+        populateDocTypeFilter(docs);
+      } else {
+        thPhone.classList.add("d-none");
+        adminFilterBar.classList.add("d-none");
+
+        // 5-entry limit enforcement
+        if (docs.length >= 5) {
+          quotaBadge.innerHTML = `<span class="badge bg-danger p-2">Free Limit: 5 / 5 entries used</span>`;
+          upgradeCard.classList.remove("d-none");
+          addSection.classList.add("d-none"); // Hide add form
+        } else {
+          quotaBadge.innerHTML = `<span class="badge bg-secondary p-2">Free Plan: ${docs.length} / 5 entries used</span>`;
+          upgradeCard.classList.add("d-none");
+          addSection.classList.remove("d-none");
+        }
+      }
+
+      if (docs.length > 0 && docs[0].email) {
+        document.getElementById("formEmail").value = docs[0].email;
+      }
+
+      displayFilteredRows(docs);
+    }
+
+    function populateDocTypeFilter(docs) {
+      const select = document.getElementById("filterDocType");
+      const types = Array.from(new Set(docs.map(d => d.docType).filter(Boolean)));
+      select.innerHTML = '<option value="">All Document Types</option>';
+      types.forEach(t => {
+        select.innerHTML += `<option value="${t}">${t}</option>`;
+      });
+    }
+
+    function applyFilters() {
+      if (!isUserAdmin) return;
+      const keyword = document.getElementById("filterKeyword").value.toLowerCase().trim();
+      const type = document.getElementById("filterDocType").value;
+      const relation = document.getElementById("filterRelation").value;
+      const statusFilter = document.getElementById("filterStatus").value;
+
+      const now = new Date();
+      now.setHours(0,0,0,0);
+
+      const filtered = allFetchedDocs.filter(doc => {
+        // Keyword search across person, docId, phone
+        const matchesKeyword = !keyword || 
+          String(doc.personName).toLowerCase().includes(keyword) || 
+          String(doc.docId).toLowerCase().includes(keyword) || 
+          String(doc.phone).includes(keyword);
+
+        const matchesType = !type || doc.docType === type;
+        const matchesRelation = !relation || doc.relationship === relation;
+
+        // Expiry calculation for status filter
+        const exp = new Date(doc.expiryDate);
+        exp.setHours(0,0,0,0);
+        const diffDays = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+        const isSnoozed = doc.snoozeUntil && now < new Date(doc.snoozeUntil);
+
+        let calculatedStatus = "ACTIVE";
+        if (doc.status === "STOPPED") calculatedStatus = "STOPPED";
+        else if (isSnoozed) calculatedStatus = "SNOOZED";
+        else if (diffDays < 0) calculatedStatus = "EXPIRED";
+        else if (diffDays <= doc.alertDays) calculatedStatus = "EXPIRING";
+
+        const matchesStatus = !statusFilter || calculatedStatus === statusFilter;
+
+        return matchesKeyword && matchesType && matchesRelation && matchesStatus;
+      });
+
+      document.getElementById("adminTotalCount").innerText = `(${filtered.length} of ${allFetchedDocs.length} shown)`;
+      displayFilteredRows(filtered);
+    }
+
+    function displayFilteredRows(docs) {
       const tbody = document.getElementById("docTableBody");
       tbody.innerHTML = "";
 
       if (docs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">No documents found. Add your first document below.</td></tr>`;
-      } else {
-        if (docs[0].email) document.getElementById("formEmail").value = docs[0].email;
-
-        const now = new Date();
-        now.setHours(0,0,0,0);
-
-        docs.forEach(doc => {
-          const exp = new Date(doc.expiryDate);
-          exp.setHours(0,0,0,0);
-          const diffDays = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
-
-          let badge = '<span class="badge bg-success">Active</span>';
-          if (doc.status === "STOPPED") {
-            badge = '<span class="badge bg-secondary">Alerts Stopped</span>';
-          } else if (diffDays < 0) {
-            badge = '<span class="badge bg-danger">Expired</span>';
-          } else if (diffDays <= doc.alertDays) {
-            badge = `<span class="badge bg-warning text-dark">Expiring in ${diffDays}d</span>`;
-          }
-
-          if (doc.status !== "STOPPED" && doc.snoozeUntil) {
-            const snz = new Date(doc.snoozeUntil);
-            snz.setHours(0,0,0,0);
-            if (now < snz) badge += ` <span class="badge bg-info text-dark">Snoozed till ${doc.snoozeUntil}</span>`;
-          }
-
-          let snoozeBtn = "";
-          if (diffDays > 0 && doc.status !== "STOPPED") {
-            snoozeBtn = `<button class="btn btn-outline-warning btn-sm me-1" onclick='openSnoozeModal(${JSON.stringify(doc)}, ${diffDays})'>Snooze</button>`;
-          }
-
-          let toggleBtn = (doc.status === "STOPPED")
-            ? `<button class="btn btn-outline-success btn-sm" onclick="toggleStatus(${doc.row}, '${doc.status}')">Resume</button>`
-            : `<button class="btn btn-outline-danger btn-sm" onclick="toggleStatus(${doc.row}, '${doc.status}')">Stop</button>`;
-
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td><strong>${doc.personName}</strong></td>
-            <td>${doc.relationship}</td>
-            <td>${doc.docType}</td>
-            <td><code>${doc.docId}</code></td>
-            <td>${doc.expiryDate}</td>
-            <td>${badge}</td>
-            <td>${snoozeBtn}${toggleBtn}</td>
-          `;
-          tbody.appendChild(tr);
-        });
+        tbody.innerHTML = `<tr><td colspan="${isUserAdmin ? 8 : 7}" class="text-center text-muted">No documents found.</td></tr>`;
+        return;
       }
+
+      const now = new Date();
+      now.setHours(0,0,0,0);
+
+      docs.forEach(doc => {
+        const exp = new Date(doc.expiryDate);
+        exp.setHours(0,0,0,0);
+        const diffDays = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+
+        let badge = '<span class="badge bg-success">Active</span>';
+        if (doc.status === "STOPPED") {
+          badge = '<span class="badge bg-secondary">Alerts Stopped</span>';
+        } else if (diffDays < 0) {
+          badge = '<span class="badge bg-danger">Expired</span>';
+        } else if (diffDays <= doc.alertDays) {
+          badge = `<span class="badge bg-warning text-dark">Expiring in ${diffDays}d</span>`;
+        }
+
+        if (doc.status !== "STOPPED" && doc.snoozeUntil) {
+          const snz = new Date(doc.snoozeUntil);
+          snz.setHours(0,0,0,0);
+          if (now < snz) badge += ` <span class="badge bg-info text-dark">Snoozed till ${doc.snoozeUntil}</span>`;
+        }
+
+        let snoozeBtn = "";
+        if (diffDays > 0 && doc.status !== "STOPPED") {
+          snoozeBtn = `<button class="btn btn-outline-warning btn-sm me-1" onclick='openSnoozeModal(${JSON.stringify(doc)}, ${diffDays})'>Snooze</button>`;
+        }
+
+        let toggleBtn = (doc.status === "STOPPED")
+          ? `<button class="btn btn-outline-success btn-sm" onclick="toggleStatus(${doc.row}, '${doc.status}')">Resume</button>`
+          : `<button class="btn btn-outline-danger btn-sm" onclick="toggleStatus(${doc.row}, '${doc.status}')">Stop</button>`;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          ${isUserAdmin ? `<td><code>${doc.phone}</code></td>` : ''}
+          <td><strong>${doc.personName}</strong></td>
+          <td>${doc.relationship}</td>
+          <td>${doc.docType}</td>
+          <td><code>${doc.docId}</code></td>
+          <td>${doc.expiryDate}</td>
+          <td>${badge}</td>
+          <td>${snoozeBtn}${toggleBtn}</td>
+        `;
+        tbody.appendChild(tr);
+      });
     }
 
     async function toggleStatus(row, currentStatus) {
       if (!confirm(`Are you sure you want to ${currentStatus === "STOPPED" ? "resume" : "stop"} alerts for this document?`)) return;
       await apiRequest("toggleStatus", { row: row, status: currentStatus });
-      const res = await apiRequest("getDocs", { phone: activePhone });
-      renderGrid(res.docs);
+      refreshData();
     }
 
     function openSnoozeModal(doc, maxDays) {
@@ -332,8 +488,7 @@
 
       if (res.success) {
         snoozeModalInstance.hide();
-        const docsRes = await apiRequest("getDocs", { phone: activePhone });
-        renderGrid(docsRes.docs);
+        refreshData();
       } else {
         alertBox.innerText = res.message;
         alertBox.classList.remove("d-none");
@@ -357,14 +512,22 @@
         alertDays: document.getElementById("alertDays").value
       };
 
-      await apiRequest("addDocument", payload);
+      const res = await apiRequest("addDocument", payload);
       saveBtn.disabled = false;
       saveBtn.innerText = "Save Document";
-      document.getElementById("docForm").reset();
-      document.getElementById("formEmail").value = payload.email;
 
-      const docsRes = await apiRequest("getDocs", { phone: activePhone });
-      renderGrid(docsRes.docs);
+      if (res.success) {
+        document.getElementById("docForm").reset();
+        document.getElementById("formEmail").value = payload.email;
+        refreshData();
+      } else {
+        alert(res.message);
+      }
+    }
+
+    async function refreshData() {
+      const res = await apiRequest("getDocs", { phone: activePhone });
+      renderGrid(res.docs, isUserAdmin);
     }
   </script>
 </body>
