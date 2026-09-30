@@ -6,78 +6,112 @@
   <title>Document(s) Expiry Notification System</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    body { background-color: #f8f9fa; padding: 25px 10px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .card { border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.06); margin-bottom: 20px; }
-    .table th { background-color: #f1f3f5; font-size: 0.85rem; text-transform: uppercase; }
-    .admin-banner { background-color: #212529; color: #ffc107; padding: 6px 12px; border-radius: 6px; font-weight: 500; }
+    body { background-color: #f4f6f9; padding: 20px 8px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .card { border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 22px; border: 1px solid #e2e8f0; }
+    .table th { background-color: #edf2f7; font-size: 0.85rem; text-transform: uppercase; color: #4a5568; }
+    .pricing-card { border: 2px solid #e2e8f0; transition: transform 0.2s; }
+    .pricing-card:hover { transform: translateY(-4px); border-color: #3182ce; }
+    .badge-plan { font-size: 0.85rem; padding: 5px 10px; border-radius: 20px; }
   </style>
 </head>
 <body>
   <div class="container" style="max-width: 1050px;">
-    <h3 class="mb-4 text-center fw-bold text-dark">Document(s) Expiry Notification System</h3>
+    
+    <!-- Header -->
+    <div class="text-center mb-4">
+      <h3 class="fw-bold text-dark">Document(s) Expiry Notification System</h3>
+      <p class="text-muted">Keep track of passports, licenses, visas, and family documents with automatic alerts</p>
+    </div>
 
-    <!-- 1. Phone Lookup -->
-    <div class="card p-4">
-      <h5>Lookup Documents by Phone</h5>
-      <div class="row g-2 align-items-center mt-1">
+    <!-- Step 1: User Mobile Number Entry -->
+    <div class="card p-4" id="loginCard">
+      <h5 class="fw-bold">Step 1: Access Your Records</h5>
+      <p class="text-muted small">Enter your mobile number to view your documents or register new ones.</p>
+      <div class="row g-2 align-items-center">
         <div class="col-md-8">
-          <input type="tel" id="searchPhone" class="form-control" placeholder="Enter mobile number">
+          <input type="tel" id="searchPhone" class="form-control form-control-lg" placeholder="e.g. 96891234567 or 919876543210">
+          <small class="text-muted">Enter 7 to 15 digits (including your country code if applicable)</small>
         </div>
         <div class="col-md-4">
-          <button class="btn btn-primary w-100" id="lookupBtn" onclick="handleLookup()">
+          <button class="btn btn-primary btn-lg w-100" id="lookupBtn" onclick="handleLookup()">
             <span id="lookupSpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
-            Search Records
+            Continue
           </button>
         </div>
       </div>
+      <div id="phoneError" class="alert alert-danger d-none mt-2 p-2 small"></div>
     </div>
 
-    <!-- 1.5 OTP Verification -->
+    <!-- Step 1.5: Security Check (OTP) -->
     <div class="card p-4 d-none border-primary" id="otpCard">
-      <h5 class="text-primary">Verification Required</h5>
+      <h5 class="fw-bold text-primary">Security Verification</h5>
       <p class="text-muted small mb-2" id="otpNotice"></p>
       <div class="row g-2 align-items-center">
         <div class="col-md-6">
-          <input type="text" id="otpInput" class="form-control" maxlength="6" placeholder="Enter 6-digit OTP">
+          <input type="text" id="otpInput" class="form-control form-control-lg" maxlength="6" placeholder="Enter 6-digit code">
         </div>
         <div class="col-md-3">
-          <button class="btn btn-success w-100" id="verifyOtpBtn" onclick="verifyOtp()">
+          <button class="btn btn-success btn-lg w-100" id="verifyOtpBtn" onclick="verifyOtp()">
             <span id="verifySpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
-            Verify & Unlock
+            Verify
           </button>
         </div>
         <div class="col-md-3">
-          <button class="btn btn-outline-secondary w-100" onclick="handleLookup()">Resend OTP</button>
+          <button class="btn btn-outline-secondary btn-lg w-100" onclick="handleLookup()">Resend Code</button>
         </div>
       </div>
       <div id="otpErrorAlert" class="alert alert-danger d-none mt-2 p-2 small"></div>
     </div>
 
-    <!-- 2. Records Grid -->
+    <!-- Blocked Account Modal Alert -->
+    <div class="card p-4 d-none border-danger bg-light" id="blockedAlertCard">
+      <div class="text-center py-2">
+        <h4 class="text-danger fw-bold">⚠️ Access Suspended</h4>
+        <p class="text-dark mt-2 mb-3">Your mobile number / account has been deactivated by administration.</p>
+        <p class="text-muted small">If you believe this is in error or need assistance, please contact support.</p>
+        <a id="contactAdminBlockedBtn" href="#" class="btn btn-danger px-4">Contact Administrator via Email</a>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs for Admin -->
+    <div id="adminNavTabs" class="d-none mb-3">
+      <ul class="nav nav-pills">
+        <li class="nav-item">
+          <button class="nav-link active fw-bold" id="tabDocsBtn" onclick="switchAdminTab('docs')">All Documents Grid</button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link fw-bold" id="tabUsersBtn" onclick="switchAdminTab('users')">User Management & Plans</button>
+        </li>
+      </ul>
+    </div>
+
+    <!-- 2. Documents Section -->
     <div class="card p-4 d-none" id="recordsSection">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <h5 class="mb-0" id="gridTitle">Your Document Records</h5>
-        <div id="quotaBadge"></div>
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+        <div>
+          <h5 class="fw-bold mb-0" id="gridHeaderTitle">Saved Documents</h5>
+          <small class="text-muted" id="userPlanInfo"></small>
+        </div>
+        <div class="d-flex align-items-center gap-2 mt-2 mt-md-0">
+          <button class="btn btn-outline-primary btn-sm fw-bold" onclick="openPricingModal()">⭐ Upgrade Plan</button>
+          <div id="quotaBadge"></div>
+        </div>
       </div>
 
-      <!-- Admin Multi-level Filter Bar -->
-      <div id="adminFilterBar" class="d-none bg-light border rounded p-3 mb-3">
-        <div class="d-flex align-items-center mb-2">
-          <span class="admin-banner me-2">Admin Mode: All System Documents</span>
-          <span class="text-muted small" id="adminTotalCount"></span>
-        </div>
+      <!-- Universal Search & Multi-Level Filter Bar (Available to all users) -->
+      <div class="bg-light border rounded p-3 mb-3">
         <div class="row g-2">
-          <div class="col-md-3">
-            <input type="text" id="filterKeyword" class="form-control form-control-sm" placeholder="Search Name, ID, or Phone" oninput="applyFilters()">
+          <div class="col-md-4">
+            <input type="text" id="filterKeyword" class="form-control form-control-sm" placeholder="Search by name, ID, or notes..." oninput="applyFilters()">
           </div>
           <div class="col-md-3">
             <select id="filterDocType" class="form-select form-select-sm" onchange="applyFilters()">
               <option value="">All Document Types</option>
             </select>
           </div>
-          <div class="col-md-3">
+          <div class="col-md-2">
             <select id="filterRelation" class="form-select form-select-sm" onchange="applyFilters()">
-              <option value="">All Relationships</option>
+              <option value="">All Persons</option>
               <option value="Self">Self</option>
               <option value="Spouse">Spouse</option>
               <option value="Son">Son</option>
@@ -90,28 +124,29 @@
           <div class="col-md-3">
             <select id="filterStatus" class="form-select form-select-sm" onchange="applyFilters()">
               <option value="">All Expiry Statuses</option>
-              <option value="ACTIVE">Active</option>
+              <option value="ACTIVE">Active & Valid</option>
               <option value="EXPIRING">Expiring Soon</option>
-              <option value="EXPIRED">Expired</option>
+              <option value="EXPIRED">Already Expired</option>
               <option value="SNOOZED">Snoozed</option>
-              <option value="STOPPED">Alerts Stopped</option>
+              <option value="STOPPED">Notifications Off</option>
             </select>
           </div>
         </div>
       </div>
 
+      <!-- Documents Table -->
       <div class="table-responsive">
         <table class="table table-bordered table-hover align-middle">
           <thead>
             <tr>
-              <th id="thPhone" class="d-none">User Phone</th>
-              <th>Person</th>
+              <th id="thAdminPhone" class="d-none">User Phone</th>
+              <th>Person Name</th>
               <th>Relation</th>
-              <th>Doc Type</th>
-              <th>Doc ID</th>
-              <th>Expiry</th>
+              <th>Document Type</th>
+              <th>Document ID</th>
+              <th>Expiry Date</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody id="docTableBody"></tbody>
@@ -119,70 +154,190 @@
       </div>
     </div>
 
-    <!-- Upgrade Limit Card -->
+    <!-- Admin User Management Panel -->
+    <div class="card p-4 d-none" id="adminUsersSection">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold mb-0">System User Accounts & Subscriptions</h5>
+        <button class="btn btn-outline-secondary btn-sm" onclick="loadAdminUsers()">Refresh Users</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-bordered table-hover align-middle">
+          <thead>
+            <tr>
+              <th>Mobile</th>
+              <th>Registered Email</th>
+              <th>Total Docs</th>
+              <th>Current Plan</th>
+              <th>Account Status</th>
+              <th>Admin Action</th>
+            </tr>
+          </thead>
+          <tbody id="adminUserTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Upgrade Prompt (When Quota Reached) -->
     <div class="card p-4 d-none border-warning bg-light" id="upgradeCard">
       <div class="text-center py-2">
-        <h5 class="text-dark fw-bold">Free Limit Reached (5/5 Documents)</h5>
-        <p class="text-muted mb-3">You have reached the maximum quota of 5 document entries for the free version. To unlock unlimited entries, please contact the developer.</p>
-        <a id="developerMailBtn" href="#" class="btn btn-warning fw-bold px-4">Contact Developer for Full Access</a>
+        <h5 class="text-dark fw-bold">Plan Limit Reached</h5>
+        <p class="text-muted mb-3" id="quotaLimitText">You have reached the maximum document limit allowed on your current plan.</p>
+        <button class="btn btn-warning fw-bold px-4" onclick="openPricingModal()">View Upgrade Plans & Pricing</button>
       </div>
     </div>
 
     <!-- 3. Add Document Form -->
     <div class="card p-4 d-none" id="addDocSection">
-      <h5>Add Document (Self or Dependent)</h5>
+      <h5 class="fw-bold">Add a New Document</h5>
+      <p class="text-muted small">Save document details for yourself or your family members.</p>
       <form id="docForm" onsubmit="submitDoc(event)">
         <div class="row g-3 mt-1">
           <div class="col-md-6">
-            <label class="form-label">Notification Email</label>
-            <input type="email" id="formEmail" class="form-control" required placeholder="user@example.com">
+            <label class="form-label fw-bold small">Alert Email Address</label>
+            <input type="email" id="formEmail" class="form-control" required placeholder="where notifications will be sent">
           </div>
           <div class="col-md-6">
-            <label class="form-label">Person Name</label>
-            <input type="text" id="personName" class="form-control" required placeholder="Full Name">
+            <label class="form-label fw-bold small">Document Holder's Full Name</label>
+            <input type="text" id="personName" class="form-control" required placeholder="e.g. John Doe">
           </div>
           <div class="col-md-6">
-            <label class="form-label">Relationship</label>
+            <label class="form-label fw-bold small">Relationship</label>
             <select id="relationship" class="form-select" required>
               <option value="Self">Self</option>
-              <option value="Spouse">Spouse</option>
+              <option value="Spouse">Spouse (Wife / Husband)</option>
               <option value="Son">Son</option>
               <option value="Daughter">Daughter</option>
               <option value="Father">Father</option>
               <option value="Mother">Mother</option>
-              <option value="Other">Other</option>
+              <option value="Other">Other Dependent</option>
             </select>
           </div>
           <div class="col-md-6">
-            <label class="form-label">Document Type</label>
-            <input type="text" id="docType" class="form-control" required placeholder="e.g. Passport, License, ID">
+            <label class="form-label fw-bold small">Document Type</label>
+            <select id="docTypeSelect" class="form-select" onchange="handleDocTypeChange(this)" required>
+              <option value="Passport">Passport</option>
+              <option value="Driving License">Driving License</option>
+              <option value="National ID / Civil ID">National ID / Civil ID</option>
+              <option value="Resident Card / Visa">Resident Card / Visa</option>
+              <option value="Vehicle Insurance">Vehicle Insurance</option>
+              <option value="Health Insurance">Health Insurance</option>
+              <option value="Tenancy / Rent Agreement">Tenancy / Rent Agreement</option>
+              <option value="__NEW__">+ Add Custom Document Type...</option>
+            </select>
+            <input type="text" id="customDocTypeInput" class="form-control mt-2 d-none" placeholder="Enter new document type name">
           </div>
           <div class="col-md-6">
-            <label class="form-label">Document ID</label>
-            <input type="text" id="docId" class="form-control" required placeholder="e.g. A12345678">
+            <label class="form-label fw-bold small">Document Number / ID</label>
+            <input type="text" id="docId" class="form-control" required placeholder="e.g. Passport number or License number">
           </div>
           <div class="col-md-6">
-            <label class="form-label">Expiry Date</label>
+            <label class="form-label fw-bold small">Expiry Date</label>
             <input type="date" id="expiryDate" class="form-control" required>
           </div>
           <div class="col-md-6">
-            <label class="form-label">Alert Period</label>
+            <label class="form-label fw-bold small">When to Notify You Before Expiry?</label>
             <select id="alertDays" class="form-select">
               <option value="7">7 Days Before</option>
               <option value="15">15 Days Before</option>
-              <option value="30" selected>30 Days Before</option>
-              <option value="60">60 Days Before</option>
-              <option value="90">90 Days Before</option>
+              <option value="30" selected>30 Days Before (1 Month)</option>
+              <option value="60">60 Days Before (2 Months)</option>
+              <option value="90">90 Days Before (3 Months)</option>
+              <option value="180">180 Days Before (6 Months)</option>
+              <option value="365">365 Days Before (1 Year)</option>
             </select>
           </div>
           <div class="col-12 mt-3">
-            <button type="submit" id="saveBtn" class="btn btn-success">
+            <button type="submit" id="saveBtn" class="btn btn-success px-4 py-2 fw-bold">
               <span id="saveSpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
               Save Document
             </button>
           </div>
         </div>
       </form>
+    </div>
+
+  </div>
+
+  <!-- Pricing & Premium Plans Modal -->
+  <div class="modal fade" id="pricingModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold">Choose a Plan</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="row g-3 text-center">
+            <!-- Basic Plan -->
+            <div class="col-md-4">
+              <div class="card p-3 pricing-card h-100">
+                <h6 class="fw-bold text-primary">BASIC PLAN</h6>
+                <div class="my-2">
+                  <span class="fs-3 fw-bold text-dark">₹199</span>
+                  <span class="text-decoration-line-through text-muted small ms-1">₹499</span>
+                </div>
+                <p class="text-muted small">Ideal for individuals & small families</p>
+                <hr>
+                <ul class="list-unstyled text-start small mb-4">
+                  <li>✓ <strong>Up to 50 Documents</strong></li>
+                  <li>✓ Family & Dependents</li>
+                  <li>✓ Daily Auto Email Alerts</li>
+                  <li>✓ Snooze & Stop Controls</li>
+                </ul>
+                <button class="btn btn-outline-primary mt-auto fw-bold" onclick="requestUpgrade('Basic Plan (₹199 / 50 Entries)')">Choose Basic</button>
+              </div>
+            </div>
+
+            <!-- Advanced Plan -->
+            <div class="col-md-4">
+              <div class="card p-3 pricing-card h-100 border-primary shadow-sm">
+                <span class="badge bg-primary w-50 mx-auto mb-1">POPULAR</span>
+                <h6 class="fw-bold text-primary">ADVANCED PLAN</h6>
+                <div class="my-2">
+                  <span class="fs-3 fw-bold text-dark">₹499</span>
+                  <span class="text-decoration-line-through text-muted small ms-1">₹999</span>
+                </div>
+                <p class="text-muted small">For larger families & businesses</p>
+                <hr>
+                <ul class="list-unstyled text-start small mb-4">
+                  <li>✓ <strong>Up to 125 Documents</strong></li>
+                  <li>✓ All Family Members</li>
+                  <li>✓ Extended 1-Year Alerts</li>
+                  <li>✓ Priority Support</li>
+                </ul>
+                <button class="btn btn-primary mt-auto fw-bold" onclick="requestUpgrade('Advanced Plan (₹499 / 125 Entries)')">Choose Advanced</button>
+              </div>
+            </div>
+
+            <!-- Unlimited Plan -->
+            <div class="col-md-4">
+              <div class="card p-3 pricing-card h-100">
+                <h6 class="fw-bold text-dark">UNLIMITED</h6>
+                <div class="my-2">
+                  <span class="fs-3 fw-bold text-dark">₹1,999</span>
+                  <span class="text-muted small">/ one-time</span>
+                </div>
+                <p class="text-muted small">Never worry about limits</p>
+                <hr>
+                <ul class="list-unstyled text-start small mb-4">
+                  <li>✓ <strong>Unlimited Documents</strong></li>
+                  <li>✓ Unlimited Dependents</li>
+                  <li>✓ Lifetime Access</li>
+                  <li>✓ VIP Email Support</li>
+                </ul>
+                <button class="btn btn-outline-dark mt-auto fw-bold" onclick="requestUpgrade('Unlimited Plan (₹1,999 / Unlimited Entries)')">Choose Unlimited</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Custom Organization Box -->
+          <div class="bg-light border rounded p-3 mt-4 text-center">
+            <h6 class="fw-bold text-dark mb-1">Looking for a Private System for Your Own Organization?</h6>
+            <p class="text-muted small mb-2">We build custom document management systems with company branding, multi-admin panels, and employee tracking.</p>
+            <button class="btn btn-sm btn-dark px-3 fw-bold" onclick="requestCustomOrg()">Inquire About Custom Setup</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -191,29 +346,29 @@
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Snooze Expiry Alert</h5>
+          <h5 class="modal-title fw-bold">Snooze Alert</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
           <p id="snoozeDocDetails" class="text-muted small"></p>
           <div class="mb-3">
-            <label class="form-label">Quick Snooze:</label>
+            <label class="form-label small fw-bold">Quick Snooze Options:</label>
             <div class="d-flex gap-2">
               <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setQuickSnooze(7)">7 Days</button>
-              <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setQuickSnooze(10)">10 Days</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setQuickSnooze(15)">15 Days</button>
               <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setQuickSnooze(30)">30 Days</button>
             </div>
           </div>
           <div class="mb-3">
-            <label class="form-label">Custom Days:</label>
-            <input type="number" id="customSnoozeDays" class="form-control" min="1" placeholder="Enter days">
+            <label class="form-label small fw-bold">Or Enter Custom Days:</label>
+            <input type="number" id="customSnoozeDays" class="form-control" min="1" placeholder="e.g. 10">
             <small class="text-muted" id="maxDaysNote"></small>
           </div>
           <div id="snoozeAlert" class="alert alert-danger d-none p-2 small"></div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" id="confirmSnoozeBtn" class="btn btn-warning" onclick="confirmSnooze()">Apply Snooze</button>
+          <button type="button" id="confirmSnoozeBtn" class="btn btn-warning fw-bold" onclick="confirmSnooze()">Apply Snooze</button>
         </div>
       </div>
     </div>
@@ -221,19 +376,29 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // === CONFIGURE YOUR APPS SCRIPT URL HERE ===
+    // ================= CONFIGURE YOUR APPS SCRIPT URL HERE =================
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxNasQkrC9GZCoILnaktL-Lw3VBbQMAqHmvy-IBOo5MMpDZwCXybcbF1ZRTZRhhHusK/exec";
+    // ======================================================================
 
     let activePhone = "";
     let isUserAdmin = false;
+    let currentUserData = null;
     let allFetchedDocs = [];
     let currentSnoozeTarget = null;
     let snoozeModalInstance = null;
+    let pricingModalInstance = null;
     let devEmail = "developer@example.com";
 
     document.addEventListener("DOMContentLoaded", function() {
       snoozeModalInstance = new bootstrap.Modal(document.getElementById('snoozeModal'));
+      pricingModalInstance = new bootstrap.Modal(document.getElementById('pricingModal'));
     });
+
+    // Validates mobile numbers (7-15 digits)
+    function validatePhone(p) {
+      const clean = p.replace(/[\s\-\+\(\)]/g, "");
+      return /^[0-9]{7,15}$/.test(clean);
+    }
 
     async function apiRequest(action, data = {}) {
       const response = await fetch(SCRIPT_URL, {
@@ -245,38 +410,65 @@
     }
 
     async function handleLookup() {
-      const phone = document.getElementById("searchPhone").value.trim();
+      const phoneInput = document.getElementById("searchPhone").value.trim();
+      const errBox = document.getElementById("phoneError");
       const btn = document.getElementById("lookupBtn");
       const sp = document.getElementById("lookupSpinner");
-      if (!phone) { alert("Please enter a phone number."); return; }
 
-      activePhone = phone;
+      errBox.classList.add("d-none");
+      document.getElementById("blockedAlertCard").classList.add("d-none");
+
+      if (!validatePhone(phoneInput)) {
+        errBox.innerText = "Please enter a valid mobile number (7 to 15 digits). Digits only.";
+        errBox.classList.remove("d-none");
+        return;
+      }
+
+      activePhone = phoneInput;
       btn.disabled = true;
       sp.classList.remove("d-none");
 
       try {
-        const res = await apiRequest("initiateLookup", { phone: phone });
+        const res = await apiRequest("initiateLookup", { phone: phoneInput });
         btn.disabled = false;
         sp.classList.add("d-none");
 
         if (res.developerEmail) devEmail = res.developerEmail;
+
+        if (res.isBlocked) {
+          showBlockedScreen(res.developerEmail || devEmail);
+          return;
+        }
+
         isUserAdmin = res.isAdmin || false;
 
         if (res.requiresOtp) {
           document.getElementById("otpCard").classList.remove("d-none");
-          document.getElementById("otpNotice").innerText = `Verification code sent to ${res.maskedEmail}.`;
+          document.getElementById("otpNotice").innerText = `We found your records! A 6-digit verification code has been sent to ${res.maskedEmail}.`;
           document.getElementById("recordsSection").classList.add("d-none");
           document.getElementById("addDocSection").classList.add("d-none");
           document.getElementById("upgradeCard").classList.add("d-none");
         } else {
+          // New unregistered user
           document.getElementById("otpCard").classList.add("d-none");
-          renderGrid([], false);
+          renderGrid([], false, { plan: "FREE" }, 5);
         }
       } catch (err) {
         btn.disabled = false;
         sp.classList.add("d-none");
-        alert("Server response delayed. Please try again.");
+        alert("Unable to reach the server. Please check your internet connection.");
       }
+    }
+
+    function showBlockedScreen(email) {
+      document.getElementById("loginCard").classList.add("d-none");
+      document.getElementById("otpCard").classList.add("d-none");
+      document.getElementById("recordsSection").classList.add("d-none");
+      document.getElementById("addDocSection").classList.add("d-none");
+      document.getElementById("upgradeCard").classList.add("d-none");
+      document.getElementById("blockedAlertCard").classList.remove("d-none");
+      document.getElementById("contactAdminBlockedBtn").href = 
+        `mailto:${email}?subject=Suspension%20Inquiry%20-%20Phone%20${activePhone}&body=Hello,%20My%20account%20for%20mobile%20number%20${activePhone}%20is%20showing%20as%20suspended.%20Please%20advise%20on%20how%20to%20reactivate%20it.`;
     }
 
     async function verifyOtp() {
@@ -286,7 +478,7 @@
       const errBox = document.getElementById("otpErrorAlert");
 
       if (!otp || otp.length !== 6) {
-        errBox.innerText = "Enter a valid 6-digit OTP.";
+        errBox.innerText = "Please enter the complete 6-digit code.";
         errBox.classList.remove("d-none");
         return;
       }
@@ -299,47 +491,56 @@
       btn.disabled = false;
       sp.classList.add("d-none");
 
+      if (res.isBlocked) {
+        showBlockedScreen(res.developerEmail || devEmail);
+        return;
+      }
+
       if (res.success) {
         document.getElementById("otpCard").classList.add("d-none");
         isUserAdmin = res.isAdmin;
+        currentUserData = res.user;
         if (res.developerEmail) devEmail = res.developerEmail;
-        renderGrid(res.docs, isUserAdmin);
+        renderGrid(res.docs, isUserAdmin, res.user, res.planLimit);
       } else {
         errBox.innerText = res.message;
         errBox.classList.remove("d-none");
       }
     }
 
-    function renderGrid(docs, isAdmin) {
+    function renderGrid(docs, isAdmin, user, planLimit) {
       allFetchedDocs = docs;
+      currentUserData = user;
       document.getElementById("recordsSection").classList.remove("d-none");
 
-      const mailLink = `mailto:${devEmail}?subject=Full%20Access%20Request%20-%20Document%20Expiry%20System&body=Hello,%0D%0AI%20would%20like%20to%20request%20full%20access%20for%20phone:%20${activePhone}`;
-      document.getElementById("developerMailBtn").href = mailLink;
-
+      const quotaBadge = document.getElementById("quotaBadge");
+      const userPlanInfo = document.getElementById("userPlanInfo");
       const upgradeCard = document.getElementById("upgradeCard");
       const addSection = document.getElementById("addDocSection");
-      const quotaBadge = document.getElementById("quotaBadge");
-      const adminFilterBar = document.getElementById("adminFilterBar");
-      const thPhone = document.getElementById("thPhone");
+      const thPhone = document.getElementById("thAdminPhone");
+      const adminNav = document.getElementById("adminNavTabs");
 
       if (isAdmin) {
-        quotaBadge.innerHTML = `<span class="badge bg-dark text-warning p-2">Administrator Access</span>`;
-        adminFilterBar.classList.remove("d-none");
+        quotaBadge.innerHTML = `<span class="badge bg-dark text-warning p-2">Admin View: All Documents</span>`;
+        userPlanInfo.innerText = "Viewing full database across all users";
+        adminNav.classList.remove("d-none");
         thPhone.classList.remove("d-none");
         upgradeCard.classList.add("d-none");
         addSection.classList.remove("d-none");
-        populateDocTypeFilter(docs);
       } else {
+        adminNav.classList.add("d-none");
         thPhone.classList.add("d-none");
-        adminFilterBar.classList.add("d-none");
+        const planName = (user && user.plan) ? user.plan : "FREE";
+        userPlanInfo.innerText = `Plan: ${planName} (${docs.length} of ${planLimit} documents registered)`;
 
-        if (docs.length >= 5) {
-          quotaBadge.innerHTML = `<span class="badge bg-danger p-2">Free Limit: 5 / 5 entries used</span>`;
+        if (docs.length >= planLimit) {
+          quotaBadge.innerHTML = `<span class="badge bg-danger p-2">${planName}: Limit Reached (${docs.length}/${planLimit})</span>`;
+          document.getElementById("quotaLimitText").innerText = 
+            `You have used all ${planLimit} document slots on your ${planName} plan. Upgrade to save more documents.`;
           upgradeCard.classList.remove("d-none");
           addSection.classList.add("d-none");
         } else {
-          quotaBadge.innerHTML = `<span class="badge bg-secondary p-2">Free Plan: ${docs.length} / 5 entries used</span>`;
+          quotaBadge.innerHTML = `<span class="badge bg-success p-2">${planName}: ${docs.length} / ${planLimit} Used</span>`;
           upgradeCard.classList.add("d-none");
           addSection.classList.remove("d-none");
         }
@@ -349,25 +550,55 @@
         document.getElementById("formEmail").value = docs[0].email;
       }
 
+      populateDocTypeDropdown(docs);
       displayFilteredRows(docs);
     }
 
-    function populateDocTypeFilter(docs) {
-      const select = document.getElementById("filterDocType");
+    function populateDocTypeDropdown(docs) {
+      const filterSelect = document.getElementById("filterDocType");
+      const formSelect = document.getElementById("docTypeSelect");
+
+      // Extract existing unique types
       const types = Array.from(new Set(docs.map(d => d.docType).filter(Boolean)));
-      select.innerHTML = '<option value="">All Document Types</option>';
-      types.forEach(t => { select.innerHTML += `<option value="${t}">${t}</option>`; });
+
+      filterSelect.innerHTML = '<option value="">All Document Types</option>';
+      types.forEach(t => {
+        filterSelect.innerHTML += `<option value="${t}">${t}</option>`;
+      });
+
+      // Ensure form dropdown contains any custom types added previously
+      types.forEach(t => {
+        let exists = false;
+        for (let i = 0; i < formSelect.options.length; i++) {
+          if (formSelect.options[i].value === t) { exists = true; break; }
+        }
+        if (!exists) {
+          const opt = document.createElement("option");
+          opt.value = t; opt.text = t;
+          formSelect.insertBefore(opt, formSelect.lastElementChild);
+        }
+      });
+    }
+
+    function handleDocTypeChange(select) {
+      const customInput = document.getElementById("customDocTypeInput");
+      if (select.value === "__NEW__") {
+        customInput.classList.remove("d-none");
+        customInput.required = true;
+        customInput.focus();
+      } else {
+        customInput.classList.add("d-none");
+        customInput.required = false;
+      }
     }
 
     function applyFilters() {
-      if (!isUserAdmin) return;
       const keyword = document.getElementById("filterKeyword").value.toLowerCase().trim();
       const type = document.getElementById("filterDocType").value;
       const relation = document.getElementById("filterRelation").value;
       const statusFilter = document.getElementById("filterStatus").value;
 
-      const now = new Date();
-      now.setHours(0,0,0,0);
+      const now = new Date(); now.setHours(0,0,0,0);
 
       const filtered = allFetchedDocs.filter(doc => {
         const matchesKeyword = !keyword || 
@@ -378,22 +609,20 @@
         const matchesType = !type || doc.docType === type;
         const matchesRelation = !relation || doc.relationship === relation;
 
-        const exp = new Date(doc.expiryDate);
-        exp.setHours(0,0,0,0);
+        const exp = new Date(doc.expiryDate); exp.setHours(0,0,0,0);
         const diffDays = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
         const isSnoozed = doc.snoozeUntil && now < new Date(doc.snoozeUntil);
 
-        let calculatedStatus = "ACTIVE";
-        if (doc.status === "STOPPED") calculatedStatus = "STOPPED";
-        else if (isSnoozed) calculatedStatus = "SNOOZED";
-        else if (diffDays < 0) calculatedStatus = "EXPIRED";
-        else if (diffDays <= doc.alertDays) calculatedStatus = "EXPIRING";
+        let calcStatus = "ACTIVE";
+        if (doc.status === "STOPPED") calcStatus = "STOPPED";
+        else if (isSnoozed) calcStatus = "SNOOZED";
+        else if (diffDays < 0) calcStatus = "EXPIRED";
+        else if (diffDays <= doc.alertDays) calcStatus = "EXPIRING";
 
-        const matchesStatus = !statusFilter || calculatedStatus === statusFilter;
+        const matchesStatus = !statusFilter || calcStatus === statusFilter;
         return matchesKeyword && matchesType && matchesRelation && matchesStatus;
       });
 
-      document.getElementById("adminTotalCount").innerText = `(${filtered.length} of ${allFetchedDocs.length} shown)`;
       displayFilteredRows(filtered);
     }
 
@@ -402,21 +631,19 @@
       tbody.innerHTML = "";
 
       if (docs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="${isUserAdmin ? 8 : 7}" class="text-center text-muted py-3">No documents found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${isUserAdmin ? 8 : 7}" class="text-center text-muted py-3">No matching documents found.</td></tr>`;
         return;
       }
 
-      const now = new Date();
-      now.setHours(0,0,0,0);
+      const now = new Date(); now.setHours(0,0,0,0);
 
       docs.forEach(doc => {
-        const exp = new Date(doc.expiryDate);
-        exp.setHours(0,0,0,0);
+        const exp = new Date(doc.expiryDate); exp.setHours(0,0,0,0);
         const diffDays = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
 
-        let badge = '<span class="badge bg-success">Active</span>';
+        let badge = '<span class="badge bg-success">Valid</span>';
         if (doc.status === "STOPPED") {
-          badge = '<span class="badge bg-secondary">Alerts Stopped</span>';
+          badge = '<span class="badge bg-secondary">Alerts Off</span>';
         } else if (diffDays < 0) {
           badge = '<span class="badge bg-danger">Expired</span>';
         } else if (diffDays <= doc.alertDays) {
@@ -424,8 +651,7 @@
         }
 
         if (doc.status !== "STOPPED" && doc.snoozeUntil) {
-          const snz = new Date(doc.snoozeUntil);
-          snz.setHours(0,0,0,0);
+          const snz = new Date(doc.snoozeUntil); snz.setHours(0,0,0,0);
           if (now < snz) badge += ` <span class="badge bg-info text-dark">Snoozed till ${doc.snoozeUntil}</span>`;
         }
 
@@ -435,8 +661,8 @@
         }
 
         let toggleBtn = (doc.status === "STOPPED")
-          ? `<button class="btn btn-outline-success btn-sm" onclick="toggleStatus(${doc.row}, '${doc.status}')">Resume</button>`
-          : `<button class="btn btn-outline-danger btn-sm" onclick="toggleStatus(${doc.row}, '${doc.status}')">Stop</button>`;
+          ? `<button class="btn btn-outline-success btn-sm" onclick="toggleStatus(${doc.row}, '${doc.status}')">Turn Alerts On</button>`
+          : `<button class="btn btn-outline-danger btn-sm" onclick="toggleStatus(${doc.row}, '${doc.status}')">Stop Alert</button>`;
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -453,17 +679,17 @@
       });
     }
 
-    // Toggle Alert: Single Trip
     async function toggleStatus(row, currentStatus) {
-      if (!confirm(`Are you sure you want to ${currentStatus === "STOPPED" ? "resume" : "stop"} alerts for this document?`)) return;
+      const willStop = currentStatus !== "STOPPED";
+      if (!confirm(`Are you sure you want to ${willStop ? "stop" : "turn on"} notifications for this document?`)) return;
       const res = await apiRequest("toggleStatus", { phone: activePhone, row: row, status: currentStatus });
-      if (res.success) renderGrid(res.docs, isUserAdmin);
+      if (res.success) renderGrid(res.docs, isUserAdmin, res.user, res.planLimit);
     }
 
     function openSnoozeModal(doc, maxDays) {
       currentSnoozeTarget = { ...doc, maxDays: maxDays };
-      document.getElementById("snoozeDocDetails").innerText = `${doc.docType} (${doc.docId}) - Expires: ${doc.expiryDate} (${maxDays} days left)`;
-      document.getElementById("maxDaysNote").innerText = `Maximum allowed: ${maxDays} days.`;
+      document.getElementById("snoozeDocDetails").innerText = `${doc.docType} (${doc.docId}) - Expires: ${doc.expiryDate} (${maxDays} days remaining)`;
+      document.getElementById("maxDaysNote").innerText = `Maximum snooze allowed: ${maxDays} days.`;
       document.getElementById("customSnoozeDays").value = "";
       document.getElementById("snoozeAlert").classList.add("d-none");
       snoozeModalInstance.show();
@@ -471,13 +697,12 @@
 
     function setQuickSnooze(days) { document.getElementById("customSnoozeDays").value = days; }
 
-    // Snooze: Single Trip
     async function confirmSnooze() {
       const days = parseInt(document.getElementById("customSnoozeDays").value, 10);
       const alertBox = document.getElementById("snoozeAlert");
 
       if (isNaN(days) || days <= 0 || days > currentSnoozeTarget.maxDays) {
-        alertBox.innerText = `Please enter valid days between 1 and ${currentSnoozeTarget.maxDays}.`;
+        alertBox.innerText = `Please enter a number between 1 and ${currentSnoozeTarget.maxDays}.`;
         alertBox.classList.remove("d-none");
         return;
       }
@@ -492,28 +717,38 @@
 
       if (res.success) {
         snoozeModalInstance.hide();
-        renderGrid(res.docs, isUserAdmin);
+        renderGrid(res.docs, isUserAdmin, res.user, res.planLimit);
       } else {
         alertBox.innerText = res.message;
         alertBox.classList.remove("d-none");
       }
     }
 
-    // Add Document: Single Trip
     async function submitDoc(e) {
       e.preventDefault();
       const btn = document.getElementById("saveBtn");
       const sp = document.getElementById("saveSpinner");
+
+      // Handle custom document type if typed
+      let finalDocType = document.getElementById("docTypeSelect").value;
+      if (finalDocType === "__NEW__") {
+        finalDocType = document.getElementById("customDocTypeInput").value.trim();
+        if (!finalDocType) {
+          alert("Please enter a name for the new document type.");
+          return;
+        }
+      }
+
       btn.disabled = true;
       sp.classList.remove("d-none");
 
       const payload = {
         phone: activePhone,
-        email: document.getElementById("formEmail").value,
-        personName: document.getElementById("personName").value,
+        email: document.getElementById("formEmail").value.trim(),
+        personName: document.getElementById("personName").value.trim(),
         relationship: document.getElementById("relationship").value,
-        docType: document.getElementById("docType").value,
-        docId: document.getElementById("docId").value,
+        docType: finalDocType,
+        docId: document.getElementById("docId").value.trim(),
         expiryDate: document.getElementById("expiryDate").value,
         alertDays: document.getElementById("alertDays").value
       };
@@ -522,13 +757,101 @@
       btn.disabled = false;
       sp.classList.add("d-none");
 
+      if (res.isBlocked) {
+        showBlockedScreen(res.developerEmail || devEmail);
+        return;
+      }
+
       if (res.success) {
         document.getElementById("docForm").reset();
+        document.getElementById("customDocTypeInput").classList.add("d-none");
         document.getElementById("formEmail").value = payload.email;
-        renderGrid(res.docs, isUserAdmin);
+        renderGrid(res.docs, isUserAdmin, res.user, res.planLimit);
       } else {
         alert(res.message);
+        if (res.limitReached) openPricingModal();
       }
+    }
+
+    // Modal & Upgrade Triggers
+    function openPricingModal() { pricingModalInstance.show(); }
+
+    function requestUpgrade(plan) {
+      pricingModalInstance.hide();
+      const subj = encodeURIComponent(`Upgrade Request: ${plan} for Phone ${activePhone}`);
+      const body = encodeURIComponent(`Hello Developer,\n\nI would like to upgrade my Document Expiry System account.\n\nMobile Number: ${activePhone}\nRequested Plan: ${plan}\n\nPlease share the payment instructions.`);
+      window.location.href = `mailto:${devEmail}?subject=${subj}&body=${body}`;
+    }
+
+    function requestCustomOrg() {
+      pricingModalInstance.hide();
+      const subj = encodeURIComponent(`Organization Setup Request - Document Expiry System`);
+      const body = encodeURIComponent(`Hello Developer,\n\nOur organization is interested in a custom Document Expiry and Management system.\n\nContact Phone: ${activePhone}\nOrganization Name: \nApproximate Documents/Users: \n\nPlease get in touch with us.`);
+      window.location.href = `mailto:${devEmail}?subject=${subj}&body=${body}`;
+    }
+
+    // Admin Panel Tab Switching
+    function switchAdminTab(tab) {
+      if (tab === 'docs') {
+        document.getElementById("tabDocsBtn").classList.add("active");
+        document.getElementById("tabUsersBtn").classList.remove("active");
+        document.getElementById("recordsSection").classList.remove("d-none");
+        document.getElementById("adminUsersSection").classList.add("d-none");
+      } else {
+        document.getElementById("tabDocsBtn").classList.remove("active");
+        document.getElementById("tabUsersBtn").classList.add("active");
+        document.getElementById("recordsSection").classList.add("d-none");
+        document.getElementById("adminUsersSection").classList.remove("d-none");
+        loadAdminUsers();
+      }
+    }
+
+    async function loadAdminUsers() {
+      const tbody = document.getElementById("adminUserTableBody");
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center py-3"><span class="spinner-border spinner-border-sm me-2"></span>Loading users...</td></tr>`;
+
+      const res = await apiRequest("adminGetUsers", { adminPhone: activePhone });
+      if (!res.success) { tbody.innerHTML = `<tr><td colspan="6" class="text-danger text-center">Failed to load users.</td></tr>`; return; }
+
+      tbody.innerHTML = "";
+      res.users.forEach(u => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${u.phone}</strong></td>
+          <td>${u.email || '<span class="text-muted">Not Set</span>'}</td>
+          <td><span class="badge bg-secondary">${u.docCount} docs</span></td>
+          <td>
+            <select class="form-select form-select-sm" onchange="updateUserPlan('${u.phone}', this.value)">
+              <option value="FREE" ${u.plan === 'FREE' ? 'selected' : ''}>FREE (5)</option>
+              <option value="BASIC" ${u.plan === 'BASIC' ? 'selected' : ''}>BASIC (50)</option>
+              <option value="ADVANCED" ${u.plan === 'ADVANCED' ? 'selected' : ''}>ADVANCED (125)</option>
+              <option value="UNLIMITED" ${u.plan === 'UNLIMITED' ? 'selected' : ''}>UNLIMITED</option>
+            </select>
+          </td>
+          <td>
+            <span class="badge ${u.status === 'ACTIVE' ? 'bg-success' : 'bg-danger'}">${u.status}</span>
+          </td>
+          <td>
+            <button class="btn btn-sm ${u.status === 'ACTIVE' ? 'btn-outline-danger' : 'btn-outline-success'}" onclick="toggleUserBlock('${u.phone}', '${u.status}')">
+              ${u.status === 'ACTIVE' ? 'Block User' : 'Unblock User'}
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function updateUserPlan(targetPhone, newPlan) {
+      if (!confirm(`Upgrade ${targetPhone} to ${newPlan} plan?`)) return;
+      await apiRequest("adminUpdateUser", { adminPhone: activePhone, targetPhone: targetPhone, newPlan: newPlan });
+      loadAdminUsers();
+    }
+
+    async function toggleUserBlock(targetPhone, currentStatus) {
+      const newStatus = (currentStatus === "ACTIVE") ? "BLOCKED" : "ACTIVE";
+      if (!confirm(`Are you sure you want to change ${targetPhone} to ${newStatus}?`)) return;
+      await apiRequest("adminUpdateUser", { adminPhone: activePhone, targetPhone: targetPhone, newStatus: newStatus });
+      loadAdminUsers();
     }
   </script>
 </body>
