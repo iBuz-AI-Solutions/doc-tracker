@@ -15,6 +15,7 @@
     .locked-email-input { background-color: #edf2f7 !important; cursor: not-allowed; }
     .toast-alert { border-left: 5px solid #2f855a; font-weight: 500; }
     .user-greeting-card { background: #ffffff; border-left: 4px solid #3182ce; }
+    .danger-zone-card { border-left: 4px solid #e53e3e; background: #fff5f5; }
   </style>
 </head>
 <body>
@@ -25,7 +26,7 @@
       <p class="text-muted">Keep track of passports, licenses, visas, and family documents with automatic alerts</p>
     </div>
 
-    <!-- Global Toast Alert for Save/Update Confirmations -->
+    <!-- Global Toast Alert for Save/Update/Delete Confirmations -->
     <div id="globalSuccessAlert" class="alert alert-success d-none toast-alert shadow-sm py-3 px-4 mb-3 d-flex justify-content-between align-items-center" role="alert">
       <div id="globalSuccessText"></div>
       <button type="button" class="btn-close" onclick="document.getElementById('globalSuccessAlert').classList.add('d-none')"></button>
@@ -33,20 +34,21 @@
 
     <!-- Inactivity Timeout Notice -->
     <div id="sessionTimeoutAlert" class="alert alert-warning d-none shadow-sm py-3 px-4 mb-3 d-flex justify-content-between align-items-center" role="alert">
-      <div>⏰ <strong>Session Expired:</strong> You were automatically logged out due to 5 minutes of inactivity for your security.</div>
+      <div>⏰ <strong>Session Expired:</strong> Logged out due to 5 minutes of inactivity for your security.</div>
       <button type="button" class="btn-close" onclick="document.getElementById('sessionTimeoutAlert').classList.add('d-none')"></button>
     </div>
 
-    <!-- Active User Greeting Bar (Shown ONLY after Login, Replaces Step 1) -->
+    <!-- Active User Greeting Bar (Master Profile Info) -->
     <div id="userHeaderBar" class="d-none card p-3 mb-3 user-greeting-card d-flex flex-row justify-content-between align-items-center shadow-sm">
-      <div class="d-flex align-items-center gap-2">
-        <span class="fs-5 fw-bold text-dark">Hi, <span id="greetingPhone" class="text-primary"></span></span>
-        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1 small">● Active Session</span>
+      <div>
+        <span class="fs-5 fw-bold text-dark">Hi, <span id="greetingName" class="text-primary"></span></span>
+        <span class="text-muted small ms-2">(<span id="greetingPhone"></span>)</span>
+        <div class="text-muted small mt-1">Alert Email: <strong id="greetingEmail"></strong> 🔒</div>
       </div>
       <button class="btn btn-outline-danger btn-sm fw-bold px-3" onclick="manualLogout()">🚪 Logout</button>
     </div>
 
-    <!-- Step 1: User Mobile Number Entry (Hidden after Login) -->
+    <!-- Step 1: User Mobile Number Entry -->
     <div class="card p-4" id="loginCard">
       <h5 class="fw-bold">Step 1: Access Your Records</h5>
       <p class="text-muted small">Enter your mobile number to view your documents or register new ones.</p>
@@ -65,11 +67,43 @@
       <div id="phoneError" class="alert alert-danger d-none mt-2 p-2 small"></div>
     </div>
 
-    <!-- Step 1.5: Security Check (OTP) with Countdown Timer -->
+    <!-- Step 1.2: First-Time Master Profile Registration -->
+    <div class="card p-4 d-none border-primary" id="masterRegisterCard">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="fw-bold text-primary mb-0">Setup Master Account</h5>
+        <button class="btn btn-sm btn-outline-danger" onclick="manualLogout()">Cancel</button>
+      </div>
+      <p class="text-muted small mb-3">No account found for <strong id="regPhoneNotice"></strong>. Please register your primary profile details.</p>
+      
+      <div id="regErrorAlert" class="alert alert-danger d-none p-2 small mb-3"></div>
+
+      <form id="masterRegForm" onsubmit="submitMasterProfile(event)">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-bold small">Your Full Name (Master Person)</label>
+            <input type="text" id="regMasterName" class="form-control" required placeholder="e.g. Muhammed Shafi">
+            <small class="text-muted">This is your permanent primary profile name.</small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-bold small">Primary Alert Email</label>
+            <input type="email" id="regMasterEmail" class="form-control" required placeholder="name@example.com">
+            <small class="text-muted">This email will be locked to this mobile number for security.</small>
+          </div>
+          <div class="col-12 mt-3">
+            <button type="submit" id="saveMasterBtn" class="btn btn-primary fw-bold px-4 py-2">
+              <span id="saveMasterSpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
+              Create Master Profile & Continue
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Step 1.5: Security Check (OTP) -->
     <div class="card p-4 d-none border-primary" id="otpCard">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <h5 class="fw-bold text-primary mb-0">Security Verification</h5>
-        <button class="btn btn-sm btn-outline-danger" onclick="manualLogout()">Cancel & Change Number</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="manualLogout()">Change Number</button>
       </div>
       <p class="text-muted small mb-2" id="otpNotice"></p>
       <div class="row g-2 align-items-center">
@@ -106,19 +140,17 @@
 
     <!-- Navigation Tabs for Admin -->
     <div id="adminNavTabs" class="d-none mb-3">
-      <div class="d-flex justify-content-between align-items-center">
-        <ul class="nav nav-pills">
-          <li class="nav-item">
-            <button class="nav-link active fw-bold" id="tabDocsBtn" onclick="switchAdminTab('docs')">All Documents Grid</button>
-          </li>
-          <li class="nav-item">
-            <button class="nav-link fw-bold" id="tabUsersBtn" onclick="switchAdminTab('users')">
-              User Management & Plans
-              <span id="adminPendingReqBadge" class="badge bg-danger ms-1 d-none">New Requests</span>
-            </button>
-          </li>
-        </ul>
-      </div>
+      <ul class="nav nav-pills">
+        <li class="nav-item">
+          <button class="nav-link active fw-bold" id="tabDocsBtn" onclick="switchAdminTab('docs')">All Documents Grid</button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link fw-bold" id="tabUsersBtn" onclick="switchAdminTab('users')">
+            User Management & Plans
+            <span id="adminPendingReqBadge" class="badge bg-danger ms-1 d-none">New Requests</span>
+          </button>
+        </li>
+      </ul>
     </div>
 
     <!-- 2. Documents Section -->
@@ -170,7 +202,7 @@
         </div>
       </div>
 
-      <!-- Documents Table -->
+      <!-- Documents Table with Edit, Snooze, Stop, and DELETE buttons -->
       <div class="table-responsive">
         <table class="table table-bordered table-hover align-middle">
           <thead>
@@ -202,6 +234,7 @@
             <tr>
               <th>Mobile</th>
               <th>Email</th>
+              <th>Master Name</th>
               <th>Docs</th>
               <th>Current Plan</th>
               <th>Plan Request Status</th>
@@ -233,18 +266,18 @@
       <form id="docForm" onsubmit="submitDoc(event)">
         <div class="row g-3 mt-1">
           <div class="col-md-6">
-            <label class="form-label fw-bold small">Alert Email Address</label>
-            <input type="email" id="formEmail" class="form-control" required placeholder="where notifications will be sent">
-            <small class="text-muted d-none" id="emailLockedNotice">🔒 Email is permanently linked to your mobile number and cannot be edited.</small>
+            <label class="form-label fw-bold small">Alert Email Address (Locked to Master)</label>
+            <input type="email" id="formEmail" class="form-control locked-email-input" readonly>
+            <small class="text-muted">🔒 Alerts will be sent to your verified master email.</small>
           </div>
           <div class="col-md-6">
             <label class="form-label fw-bold small">Document Holder's Full Name</label>
-            <input type="text" id="personName" class="form-control" required placeholder="e.g. John Doe">
+            <input type="text" id="personName" class="form-control" required placeholder="e.g. Muhammed Shafi">
           </div>
           <div class="col-md-6">
             <label class="form-label fw-bold small">Relationship</label>
             <select id="relationship" class="form-select" required>
-              <option value="Self">Self</option>
+              <option value="Self">Self (Master Person)</option>
               <option value="Spouse">Spouse</option>
               <option value="Son">Son</option>
               <option value="Daughter">Daughter</option>
@@ -296,6 +329,47 @@
       </form>
     </div>
 
+    <!-- Danger Zone: Account Discontinuation (Safe from Accidental Click) -->
+    <div class="card p-4 d-none danger-zone-card mt-4" id="dangerZoneSection">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h6 class="fw-bold text-danger mb-1">Discontinue from System</h6>
+          <p class="text-muted small mb-0">Permanently erase your master account profile and all registered family documents.</p>
+        </div>
+        <button class="btn btn-outline-danger btn-sm fw-bold px-3" onclick="openDiscontinueModal()">Delete Master Account</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- DISCONTINUE CONFIRMATION MODAL -->
+  <div class="modal fade" id="discontinueModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-danger text-white">
+          <h5 class="modal-title fw-bold">⚠️ Discontinue Master Account</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <p class="text-dark">This action is <strong>irreversible</strong>. It will immediately:</p>
+          <ul class="text-muted small">
+            <li>Delete your Master Profile and contact email.</li>
+            <li>Delete all registered passports, licenses, visas, and family documents.</li>
+            <li>Cancel all scheduled expiry notifications.</li>
+          </ul>
+          <div class="mb-3 mt-3">
+            <label class="form-label small fw-bold">Type <span class="text-danger">DELETE</span> to confirm:</label>
+            <input type="text" id="confirmDeleteInput" class="form-control" placeholder="Type DELETE" oninput="checkDeleteConfirmation(this)">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" id="confirmDeleteMasterBtn" class="btn btn-danger fw-bold" onclick="executeDeleteMasterAccount()" disabled>
+            Permanently Delete Everything
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- EDIT DOCUMENT MODAL -->
@@ -312,9 +386,9 @@
             <input type="hidden" id="editRow">
             <div class="row g-3">
               <div class="col-md-6">
-                <label class="form-label fw-bold small">Alert Email (Locked)</label>
+                <label class="form-label fw-bold small">Alert Email (Locked to Master)</label>
                 <input type="email" id="editEmail" class="form-control locked-email-input" readonly>
-                <small class="text-muted">🔒 Email is locked to this account.</small>
+                <small class="text-muted">🔒 Email is locked to your master profile.</small>
               </div>
               <div class="col-md-6">
                 <label class="form-label fw-bold small">Person Full Name</label>
@@ -323,7 +397,7 @@
               <div class="col-md-6">
                 <label class="form-label fw-bold small">Relationship</label>
                 <select id="editRelationship" class="form-select" required>
-                  <option value="Self">Self</option>
+                  <option value="Self">Self (Master Person)</option>
                   <option value="Spouse">Spouse</option>
                   <option value="Son">Son</option>
                   <option value="Daughter">Daughter</option>
@@ -453,7 +527,7 @@
 
           <div class="bg-light border rounded p-3 mt-4 text-center">
             <h6 class="fw-bold text-dark mb-1">Looking for a Private System for Your Organization?</h6>
-            <p class="text-muted small mb-2">We build dedicated custom document management portals with corporate branding and multi-admin panels.</p>
+            <p class="text-muted small mb-2">We build dedicated custom portals with corporate branding and multi-admin panels.</p>
             <button class="btn btn-sm btn-dark px-3 fw-bold" onclick="requestCustomOrg()">Inquire About Custom Setup</button>
           </div>
         </div>
@@ -504,32 +578,30 @@
     let isUserAdmin = false;
     let currentUserData = null;
     let lockedUserEmail = "";
+    let activeMasterName = "";
     let allFetchedDocs = [];
     let currentSnoozeTarget = null;
     let snoozeModalInstance = null;
     let pricingModalInstance = null;
     let editDocModalInstance = null;
+    let discontinueModalInstance = null;
     let devEmail = "developer@example.com";
     let resendTimerInterval = null;
 
-    // 5-Minute Inactivity / Idle Auto-Logout Tracker
-    const IDLE_LIMIT_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
+    const IDLE_LIMIT_MS = 5 * 60 * 1000;
     let idleTimer = null;
 
     function resetIdleTimer() {
       if (!activePhone) return;
       clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => {
-        autoLogoutDueToInactivity();
-      }, IDLE_LIMIT_MS);
+      idleTimer = setTimeout(() => { autoLogoutDueToInactivity(); }, IDLE_LIMIT_MS);
     }
 
     function autoLogoutDueToInactivity() {
       if (!activePhone) return;
-      resetAppSession(true); // true indicates logout happened due to idle time
+      resetAppSession(true);
     }
 
-    // Attach user activity listeners
     ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
       window.addEventListener(evt, resetIdleTimer, { passive: true });
     });
@@ -538,6 +610,7 @@
       snoozeModalInstance = new bootstrap.Modal(document.getElementById('snoozeModal'));
       pricingModalInstance = new bootstrap.Modal(document.getElementById('pricingModal'));
       editDocModalInstance = new bootstrap.Modal(document.getElementById('editDocModal'));
+      discontinueModalInstance = new bootstrap.Modal(document.getElementById('discontinueModal'));
     });
 
     function validatePhone(p) {
@@ -556,9 +629,7 @@
       alertBox.classList.remove("d-none");
       alertBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-      setTimeout(() => {
-        alertBox.classList.add("d-none");
-      }, 4500);
+      setTimeout(() => { alertBox.classList.add("d-none"); }, 4500);
     }
 
     function startResendCountdown(durationSeconds = 60) {
@@ -582,9 +653,7 @@
       }, 1000);
     }
 
-    function handleResendOtp() {
-      handleLookup();
-    }
+    function handleResendOtp() { handleLookup(); }
 
     function manualLogout() {
       if (!confirm("Are you sure you want to log out?")) return;
@@ -599,6 +668,7 @@
       isUserAdmin = false;
       currentUserData = null;
       lockedUserEmail = "";
+      activeMasterName = "";
       allFetchedDocs = [];
 
       document.getElementById("searchPhone").value = "";
@@ -607,17 +677,17 @@
       document.getElementById("otpErrorAlert").classList.add("d-none");
       document.getElementById("globalSuccessAlert").classList.add("d-none");
 
-      // Hide all dynamic panels
       document.getElementById("userHeaderBar").classList.add("d-none");
+      document.getElementById("masterRegisterCard").classList.add("d-none");
       document.getElementById("otpCard").classList.add("d-none");
       document.getElementById("recordsSection").classList.add("d-none");
       document.getElementById("addDocSection").classList.add("d-none");
+      document.getElementById("dangerZoneSection").classList.add("d-none");
       document.getElementById("adminNavTabs").classList.add("d-none");
       document.getElementById("adminUsersSection").classList.add("d-none");
       document.getElementById("upgradeCard").classList.add("d-none");
       document.getElementById("blockedAlertCard").classList.add("d-none");
 
-      // Show Step 1 card again
       document.getElementById("loginCard").classList.remove("d-none");
 
       if (isIdleTimeout) {
@@ -649,7 +719,7 @@
       document.getElementById("blockedAlertCard").classList.add("d-none");
 
       if (!validatePhone(phoneInput)) {
-        errBox.innerText = "Please enter a valid mobile number (7 to 15 digits, digits only).";
+        errBox.innerText = "Please enter a valid mobile number (7 to 15 digits).";
         errBox.classList.remove("d-none");
         return;
       }
@@ -670,20 +740,22 @@
           return;
         }
 
+        if (res.requiresRegistration) {
+          // New User: Require Master Profile Setup
+          document.getElementById("loginCard").classList.add("d-none");
+          document.getElementById("regPhoneNotice").innerText = activePhone;
+          document.getElementById("masterRegisterCard").classList.remove("d-none");
+          document.getElementById("regMasterName").focus();
+          return;
+        }
+
         isUserAdmin = res.isAdmin || false;
 
         if (res.requiresOtp) {
+          document.getElementById("loginCard").classList.add("d-none");
           document.getElementById("otpCard").classList.remove("d-none");
-          document.getElementById("otpNotice").innerText = `We found your records! A 6-digit verification code has been sent to ${res.maskedEmail}.`;
-          document.getElementById("recordsSection").classList.add("d-none");
-          document.getElementById("addDocSection").classList.add("d-none");
-          document.getElementById("upgradeCard").classList.add("d-none");
-          
+          document.getElementById("otpNotice").innerText = `We found your records! A 6-digit verification code was sent to ${res.maskedEmail}.`;
           startResendCountdown(60);
-        } else {
-          // New unregistered user
-          document.getElementById("otpCard").classList.add("d-none");
-          renderGrid([], false, { plan: "FREE" }, 5, "");
         }
       } catch (err) {
         btn.disabled = false;
@@ -693,16 +765,54 @@
       }
     }
 
+    async function submitMasterProfile(e) {
+      e.preventDefault();
+      const name = document.getElementById("regMasterName").value.trim();
+      const email = document.getElementById("regMasterEmail").value.trim();
+      const btn = document.getElementById("saveMasterBtn");
+      const sp = document.getElementById("saveMasterSpinner");
+      const errBox = document.getElementById("regErrorAlert");
+
+      errBox.classList.add("d-none");
+      btn.disabled = true;
+      sp.classList.remove("d-none");
+
+      try {
+        const res = await apiRequest("registerMasterProfile", { phone: activePhone, masterName: name, email: email });
+        btn.disabled = false;
+        sp.classList.add("d-none");
+
+        if (res.success) {
+          document.getElementById("masterRegisterCard").classList.add("d-none");
+          isUserAdmin = res.isAdmin;
+          currentUserData = res.user;
+          lockedUserEmail = res.lockedEmail;
+          activeMasterName = res.masterName;
+          renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail, res.masterName);
+          showSuccessToast("Master Profile created successfully! Welcome.");
+        } else {
+          errBox.innerText = res.message;
+          errBox.classList.remove("d-none");
+        }
+      } catch (err) {
+        btn.disabled = false;
+        sp.classList.add("d-none");
+        errBox.innerText = "Error creating profile. Please try again.";
+        errBox.classList.remove("d-none");
+      }
+    }
+
     function showBlockedScreen(email) {
       document.getElementById("loginCard").classList.add("d-none");
       document.getElementById("otpCard").classList.add("d-none");
+      document.getElementById("masterRegisterCard").classList.add("d-none");
       document.getElementById("userHeaderBar").classList.add("d-none");
       document.getElementById("recordsSection").classList.add("d-none");
       document.getElementById("addDocSection").classList.add("d-none");
       document.getElementById("upgradeCard").classList.add("d-none");
+      document.getElementById("dangerZoneSection").classList.add("d-none");
       document.getElementById("blockedAlertCard").classList.remove("d-none");
-      document.getElementById("contactAdminBlockedBtn").href = 
-        `mailto:${email}?subject=Suspension%20Inquiry%20-%20Phone%20${activePhone}`;
+      document.getElementById("contactAdminBlockedBtn").href = `mailto:${email}?subject=Suspension%20Inquiry%20-%20Phone%20${activePhone}`;
     }
 
     async function verifyOtp() {
@@ -739,8 +849,9 @@
           isUserAdmin = res.isAdmin;
           currentUserData = res.user;
           lockedUserEmail = res.lockedEmail || "";
+          activeMasterName = res.masterName || "";
           if (res.developerEmail) devEmail = res.developerEmail;
-          renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail);
+          renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail, res.masterName);
         } else {
           errBox.innerText = res.message || "Invalid or expired code.";
           errBox.classList.remove("d-none");
@@ -753,20 +864,22 @@
       }
     }
 
-    function renderGrid(docs, isAdmin, user, planLimit, lockedEmail) {
+    function renderGrid(docs, isAdmin, user, planLimit, lockedEmail, masterName) {
       allFetchedDocs = docs;
       currentUserData = user;
       lockedUserEmail = lockedEmail || (user ? user.email : "");
+      activeMasterName = masterName || (user ? user.masterName : "");
 
-      // 1. Hide Step 1 card and show the Greeting Bar
       document.getElementById("loginCard").classList.add("d-none");
       document.getElementById("userHeaderBar").classList.remove("d-none");
+      document.getElementById("greetingName").innerText = activeMasterName || "Valued User";
       document.getElementById("greetingPhone").innerText = activePhone;
+      document.getElementById("greetingEmail").innerText = lockedUserEmail;
 
-      // Start 5-minute idle countdown
       resetIdleTimer();
 
       document.getElementById("recordsSection").classList.remove("d-none");
+      document.getElementById("dangerZoneSection").classList.remove("d-none");
 
       const quotaBadge = document.getElementById("quotaBadge");
       const userPlanInfo = document.getElementById("userPlanInfo");
@@ -801,21 +914,7 @@
         }
       }
 
-      // Enforce locked email
-      const emailField = document.getElementById("formEmail");
-      const lockedNotice = document.getElementById("emailLockedNotice");
-      if (lockedUserEmail) {
-        emailField.value = lockedUserEmail;
-        emailField.readOnly = true;
-        emailField.classList.add("locked-email-input");
-        lockedNotice.classList.remove("d-none");
-      } else {
-        emailField.value = "";
-        emailField.readOnly = false;
-        emailField.classList.remove("locked-email-input");
-        lockedNotice.classList.add("d-none");
-      }
-
+      document.getElementById("formEmail").value = lockedUserEmail;
       populateDocTypeDropdown(docs);
       displayFilteredRows(docs);
     }
@@ -931,6 +1030,7 @@
           if (now < snz) badge += ` <span class="badge bg-info text-dark">Snoozed till ${doc.snoozeUntil}</span>`;
         }
 
+        // Action Buttons: Edit, Snooze, Stop/Resume, and DELETE
         let editBtn = `<button class="btn btn-outline-primary btn-sm me-1" onclick='openEditModal(${JSON.stringify(doc)})'>Edit</button>`;
 
         let snoozeBtn = "";
@@ -939,8 +1039,10 @@
         }
 
         let toggleBtn = (doc.status === "STOPPED")
-          ? `<button class="btn btn-outline-success btn-sm" onclick="toggleStatus(${doc.row}, '${doc.status}')">Turn Alerts On</button>`
-          : `<button class="btn btn-outline-danger btn-sm" onclick="toggleStatus(${doc.row}, '${doc.status}')">Stop Alert</button>`;
+          ? `<button class="btn btn-outline-success btn-sm me-1" onclick="toggleStatus(${doc.row}, '${doc.status}')">Turn Alerts On</button>`
+          : `<button class="btn btn-outline-danger btn-sm me-1" onclick="toggleStatus(${doc.row}, '${doc.status}')">Stop</button>`;
+
+        let deleteBtn = `<button class="btn btn-outline-danger btn-sm" onclick='confirmDeleteDocument(${JSON.stringify(doc)})' title="Delete this document">🗑️ Delete</button>`;
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -951,15 +1053,69 @@
           <td><code>${doc.docId}</code></td>
           <td>${doc.expiryDate}</td>
           <td>${badge}</td>
-          <td>${editBtn}${snoozeBtn}${toggleBtn}</td>
+          <td>${editBtn}${snoozeBtn}${toggleBtn}${deleteBtn}</td>
         `;
         tbody.appendChild(tr);
       });
     }
 
+    // CONFIRM & EXECUTE DOCUMENT DELETION
+    async function confirmDeleteDocument(doc) {
+      const msg = `Are you sure you want to permanently delete this document?\n\n• Document: ${doc.docType} (${doc.docId})\n• Holder: ${doc.personName} (${doc.relationship})`;
+      if (!confirm(msg)) return;
+
+      try {
+        const res = await apiRequest("deleteDocument", { phone: activePhone, row: doc.row });
+        if (res.success) {
+          renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail, res.masterName);
+          showSuccessToast(`Document '${doc.docType}' deleted successfully!`);
+        } else {
+          alert(res.message);
+        }
+      } catch (err) {
+        alert("Failed to delete document. Please try again.");
+      }
+    }
+
+    // DISCONTINUE MASTER ACCOUNT MODAL LOGIC
+    function openDiscontinueModal() {
+      document.getElementById("confirmDeleteInput").value = "";
+      document.getElementById("confirmDeleteMasterBtn").disabled = true;
+      discontinueModalInstance.show();
+    }
+
+    function checkDeleteConfirmation(input) {
+      const btn = document.getElementById("confirmDeleteMasterBtn");
+      btn.disabled = (input.value.trim().toUpperCase() !== "DELETE");
+    }
+
+    async function executeDeleteMasterAccount() {
+      const btn = document.getElementById("confirmDeleteMasterBtn");
+      btn.disabled = true;
+      btn.innerText = "Deleting Everything...";
+
+      try {
+        const res = await apiRequest("deleteMasterAccount", { phone: activePhone });
+        btn.disabled = false;
+        btn.innerText = "Permanently Delete Everything";
+        discontinueModalInstance.hide();
+
+        if (res.success) {
+          resetAppSession(false);
+          alert("Your master account, profile, and all saved documents have been completely erased from our system.");
+        } else {
+          alert("Action failed. Please try again.");
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerText = "Permanently Delete Everything";
+        alert("Network error. Please try again.");
+      }
+    }
+
     function openEditModal(doc) {
       document.getElementById("editRow").value = doc.row;
-      document.getElementById("editEmail").value = lockedUserEmail || doc.email;
+      document.getElementById("editEmail").value = lockedUserEmail;
       document.getElementById("editPersonName").value = doc.personName;
       document.getElementById("editRelationship").value = doc.relationship;
       document.getElementById("editDocId").value = doc.docId;
@@ -989,7 +1145,6 @@
       editDocModalInstance.show();
     }
 
-    // Save Edit with Complete Lock on Button until Toast Message
     async function submitEditDoc(e) {
       e.preventDefault();
       const btn = document.getElementById("saveEditBtn");
@@ -1025,7 +1180,6 @@
         return;
       }
 
-      // Lock button immediately
       btn.disabled = true;
       btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Saving Changes...`;
 
@@ -1046,7 +1200,7 @@
 
         if (res.success) {
           editDocModalInstance.hide();
-          renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail);
+          renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail, res.masterName);
           showSuccessToast("Document updated successfully!");
         } else {
           errBox.innerText = res.message;
@@ -1056,257 +1210,14 @@
         errBox.innerText = "Error saving changes. Please try again.";
         errBox.classList.remove("d-none");
       } finally {
-        // Release button lock after processing
         btn.disabled = false;
         btn.innerText = "Save Changes";
       }
     }
 
-    // Clear Add Form Fields
     function clearAddFormFields() {
       document.getElementById("personName").value = "";
       document.getElementById("docId").value = "";
       document.getElementById("expiryDate").value = "";
       document.getElementById("relationship").selectedIndex = 0;
-      document.getElementById("docTypeSelect").selectedIndex = 0;
-      document.getElementById("customDocTypeInput").value = "";
-      document.getElementById("customDocTypeInput").classList.add("d-none");
-      document.getElementById("alertDays").value = "30";
-
-      if (lockedUserEmail) {
-        document.getElementById("formEmail").value = lockedUserEmail;
-      } else {
-        document.getElementById("formEmail").value = "";
-      }
-    }
-
-    // Save New Document with Complete Lock on Button until Toast Message
-    async function submitDoc(e) {
-      e.preventDefault();
-      const btn = document.getElementById("saveBtn");
-      const alertBox = document.getElementById("addDocAlert");
-
-      alertBox.classList.add("d-none");
-
-      let finalDocType = document.getElementById("docTypeSelect").value;
-      if (finalDocType === "__NEW__") {
-        finalDocType = document.getElementById("customDocTypeInput").value.trim();
-        if (!finalDocType) {
-          alertBox.innerText = "Please specify a document type.";
-          alertBox.classList.remove("d-none");
-          return;
-        }
-      }
-
-      const docId = document.getElementById("docId").value.trim();
-
-      const targetCleanType = finalDocType.toLowerCase();
-      const targetCleanId = cleanDocId(docId);
-
-      const isDup = allFetchedDocs.some(d => 
-        d.docType.toLowerCase() === targetCleanType && 
-        cleanDocId(d.docId) === targetCleanId
-      );
-
-      if (isDup) {
-        alertBox.innerText = `Duplicate entry! A document with Type '${finalDocType}' and ID '${docId}' already exists.`;
-        alertBox.classList.remove("d-none");
-        return;
-      }
-
-      // Lock button immediately
-      btn.disabled = true;
-      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Saving Document...`;
-
-      const payload = {
-        phone: activePhone,
-        email: lockedUserEmail || document.getElementById("formEmail").value.trim(),
-        personName: document.getElementById("personName").value.trim(),
-        relationship: document.getElementById("relationship").value,
-        docType: finalDocType,
-        docId: docId,
-        expiryDate: document.getElementById("expiryDate").value,
-        alertDays: document.getElementById("alertDays").value
-      };
-
-      try {
-        const res = await apiRequest("addDocument", payload);
-
-        if (res.isBlocked) {
-          showBlockedScreen(res.developerEmail || devEmail);
-          return;
-        }
-
-        if (res.success) {
-          // Clear all form inputs
-          clearAddFormFields();
-          renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail);
-          // Show the green toast notification
-          showSuccessToast("Document registered and saved successfully!");
-        } else {
-          alertBox.innerText = res.message;
-          alertBox.classList.remove("d-none");
-          if (res.limitReached) openPricingModal();
-        }
-      } catch (err) {
-        alertBox.innerText = "Failed to save document. Please check your network and try again.";
-        alertBox.classList.remove("d-none");
-      } finally {
-        // Release button lock after processing
-        btn.disabled = false;
-        btn.innerText = "Save Document";
-      }
-    }
-
-    async function toggleStatus(row, currentStatus) {
-      const willStop = currentStatus !== "STOPPED";
-      if (!confirm(`Are you sure you want to ${willStop ? "stop" : "turn on"} notifications for this document?`)) return;
-      const res = await apiRequest("toggleStatus", { phone: activePhone, row: row, status: currentStatus });
-      if (res.success) {
-        renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail);
-        showSuccessToast(willStop ? "Alerts paused for this document." : "Alerts resumed for this document.");
-      }
-    }
-
-    function openSnoozeModal(doc, maxDays) {
-      currentSnoozeTarget = { ...doc, maxDays: maxDays };
-      document.getElementById("snoozeDocDetails").innerText = `${doc.docType} (${doc.docId}) - Expires: ${doc.expiryDate} (${maxDays} days remaining)`;
-      document.getElementById("maxDaysNote").innerText = `Maximum snooze allowed: ${maxDays} days.`;
-      document.getElementById("customSnoozeDays").value = "";
-      document.getElementById("snoozeAlert").classList.add("d-none");
-      snoozeModalInstance.show();
-    }
-
-    function setQuickSnooze(days) { document.getElementById("customSnoozeDays").value = days; }
-
-    async function confirmSnooze() {
-      const days = parseInt(document.getElementById("customSnoozeDays").value, 10);
-      const alertBox = document.getElementById("snoozeAlert");
-
-      if (isNaN(days) || days <= 0 || days > currentSnoozeTarget.maxDays) {
-        alertBox.innerText = `Please enter a number between 1 and ${currentSnoozeTarget.maxDays}.`;
-        alertBox.classList.remove("d-none");
-        return;
-      }
-
-      const btn = document.getElementById("confirmSnoozeBtn");
-      btn.disabled = true;
-      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Applying...`;
-
-      try {
-        const res = await apiRequest("snooze", { phone: activePhone, row: currentSnoozeTarget.row, days: days });
-        if (res.success) {
-          snoozeModalInstance.hide();
-          renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail);
-          showSuccessToast(`Alert snoozed for ${days} days.`);
-        } else {
-          alertBox.innerText = res.message;
-          alertBox.classList.remove("d-none");
-        }
-      } catch(err) {
-        alertBox.innerText = "Error applying snooze.";
-        alertBox.classList.remove("d-none");
-      } finally {
-        btn.disabled = false;
-        btn.innerText = "Apply Snooze";
-      }
-    }
-
-    function openPricingModal() { pricingModalInstance.show(); }
-
-    async function requestUpgrade(plan) {
-      pricingModalInstance.hide();
-      const res = await apiRequest("requestPlanUpgrade", { phone: activePhone, requestedPlan: plan });
-      if (res.success) {
-        showSuccessToast(`Upgrade request for ${plan} Plan submitted! An email notification has been dispatched.`);
-      }
-    }
-
-    function requestCustomOrg() {
-      pricingModalInstance.hide();
-      const subj = encodeURIComponent(`Organization Setup Request - Document Expiry System`);
-      const body = encodeURIComponent(`Hello Developer,\n\nOur organization is interested in a custom Document Expiry and Management system.\n\nContact Phone: ${activePhone}`);
-      window.location.href = `mailto:${devEmail}?subject=${subj}&body=${body}`;
-    }
-
-    function switchAdminTab(tab) {
-      if (tab === 'docs') {
-        document.getElementById("tabDocsBtn").classList.add("active");
-        document.getElementById("tabUsersBtn").classList.remove("active");
-        document.getElementById("recordsSection").classList.remove("d-none");
-        document.getElementById("adminUsersSection").classList.add("d-none");
-      } else {
-        document.getElementById("tabDocsBtn").classList.remove("active");
-        document.getElementById("tabUsersBtn").classList.add("active");
-        document.getElementById("recordsSection").classList.add("d-none");
-        document.getElementById("adminUsersSection").classList.remove("d-none");
-        loadAdminUsers();
-      }
-    }
-
-    async function loadAdminUsers() {
-      const tbody = document.getElementById("adminUserTableBody");
-      tbody.innerHTML = `<tr><td colspan="7" class="text-center py-3"><span class="spinner-border spinner-border-sm me-2"></span>Loading users...</td></tr>`;
-
-      const res = await apiRequest("adminGetUsers", { adminPhone: activePhone });
-      if (!res.success) { tbody.innerHTML = `<tr><td colspan="7" class="text-danger text-center">Failed to load users.</td></tr>`; return; }
-
-      tbody.innerHTML = "";
-      let hasPendingRequests = false;
-
-      res.users.forEach(u => {
-        let reqBadge = '<span class="text-muted small">None</span>';
-        if (u.requestedPlan) {
-          hasPendingRequests = true;
-          reqBadge = `<span class="req-badge">🔔 Req: ${u.requestedPlan}</span>`;
-        }
-
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td><strong>${u.phone}</strong></td>
-          <td>${u.email || '<span class="text-muted">Not Set</span>'}</td>
-          <td><span class="badge bg-secondary">${u.docCount} docs</span></td>
-          <td>
-            <select class="form-select form-select-sm" onchange="updateUserPlan('${u.phone}', this.value)">
-              <option value="FREE" ${u.plan === 'FREE' ? 'selected' : ''}>FREE (5)</option>
-              <option value="BASIC" ${u.plan === 'BASIC' ? 'selected' : ''}>BASIC (50)</option>
-              <option value="ADVANCED" ${u.plan === 'ADVANCED' ? 'selected' : ''}>ADVANCED (125)</option>
-              <option value="UNLIMITED" ${u.plan === 'UNLIMITED' ? 'selected' : ''}>UNLIMITED</option>
-            </select>
-          </td>
-          <td>${reqBadge}</td>
-          <td><span class="badge ${u.status === 'ACTIVE' ? 'bg-success' : 'bg-danger'}">${u.status}</span></td>
-          <td>
-            <button class="btn btn-sm ${u.status === 'ACTIVE' ? 'btn-outline-danger' : 'btn-outline-success'}" onclick="toggleUserBlock('${u.phone}', '${u.status}')">
-              ${u.status === 'ACTIVE' ? 'Block User' : 'Unblock User'}
-            </button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-
-      const badge = document.getElementById("adminPendingReqBadge");
-      if (hasPendingRequests) {
-        badge.classList.remove("d-none");
-      } else {
-        badge.classList.add("d-none");
-      }
-    }
-
-    async function updateUserPlan(targetPhone, newPlan) {
-      if (!confirm(`Confirm upgrade for ${targetPhone} to ${newPlan} plan?`)) return;
-      await apiRequest("adminUpdateUser", { adminPhone: activePhone, targetPhone: targetPhone, newPlan: newPlan });
-      loadAdminUsers();
-      showSuccessToast(`User plan updated to ${newPlan}.`);
-    }
-
-    async function toggleUserBlock(targetPhone, currentStatus) {
-      const newStatus = (currentStatus === "ACTIVE") ? "BLOCKED" : "ACTIVE";
-      if (!confirm(`Are you sure you want to change ${targetPhone} to ${newStatus}?`)) return;
-      await apiRequest("adminUpdateUser", { adminPhone: activePhone, targetPhone: targetPhone, newStatus: newStatus });
-      loadAdminUsers();
-      showSuccessToast(`User status changed to ${newStatus}.`);
-    }
-  </script>
-</body>
-</html>
+      document.getElementById("doc
