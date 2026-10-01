@@ -14,6 +14,7 @@
     .req-badge { background-color: #feebc8; color: #7b341e; border: 1px solid #fbd38d; font-weight: bold; padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; }
     .locked-email-input { background-color: #edf2f7 !important; cursor: not-allowed; }
     .toast-alert { border-left: 5px solid #2f855a; font-weight: 500; }
+    .user-greeting-card { background: #ffffff; border-left: 4px solid #3182ce; }
   </style>
 </head>
 <body>
@@ -30,7 +31,22 @@
       <button type="button" class="btn-close" onclick="document.getElementById('globalSuccessAlert').classList.add('d-none')"></button>
     </div>
 
-    <!-- Step 1: User Mobile Number Entry -->
+    <!-- Inactivity Timeout Notice -->
+    <div id="sessionTimeoutAlert" class="alert alert-warning d-none shadow-sm py-3 px-4 mb-3 d-flex justify-content-between align-items-center" role="alert">
+      <div>⏰ <strong>Session Expired:</strong> You were automatically logged out due to 5 minutes of inactivity for your security.</div>
+      <button type="button" class="btn-close" onclick="document.getElementById('sessionTimeoutAlert').classList.add('d-none')"></button>
+    </div>
+
+    <!-- Active User Greeting Bar (Shown ONLY after Login, Replaces Step 1) -->
+    <div id="userHeaderBar" class="d-none card p-3 mb-3 user-greeting-card d-flex flex-row justify-content-between align-items-center shadow-sm">
+      <div class="d-flex align-items-center gap-2">
+        <span class="fs-5 fw-bold text-dark">Hi, <span id="greetingPhone" class="text-primary"></span></span>
+        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1 small">● Active Session</span>
+      </div>
+      <button class="btn btn-outline-danger btn-sm fw-bold px-3" onclick="manualLogout()">🚪 Logout</button>
+    </div>
+
+    <!-- Step 1: User Mobile Number Entry (Hidden after Login) -->
     <div class="card p-4" id="loginCard">
       <h5 class="fw-bold">Step 1: Access Your Records</h5>
       <p class="text-muted small">Enter your mobile number to view your documents or register new ones.</p>
@@ -53,7 +69,7 @@
     <div class="card p-4 d-none border-primary" id="otpCard">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <h5 class="fw-bold text-primary mb-0">Security Verification</h5>
-        <button class="btn btn-sm btn-outline-danger" onclick="resetAppSession()">Change Number</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="manualLogout()">Cancel & Change Number</button>
       </div>
       <p class="text-muted small mb-2" id="otpNotice"></p>
       <div class="row g-2 align-items-center">
@@ -67,7 +83,6 @@
           </button>
         </div>
         <div class="col-md-4">
-          <!-- Countdown-controlled Resend Button -->
           <button class="btn btn-outline-secondary btn-lg w-100" id="resendOtpBtn" onclick="handleResendOtp()" disabled>
             Resend in <span id="countdownSpan">60</span>s
           </button>
@@ -84,7 +99,7 @@
         <p class="text-muted small">Please contact support to resolve this issue.</p>
         <div class="d-flex justify-content-center gap-2">
           <a id="contactAdminBlockedBtn" href="#" class="btn btn-danger px-4">Contact Administrator via Email</a>
-          <button class="btn btn-outline-secondary px-3" onclick="resetAppSession()">Start Over</button>
+          <button class="btn btn-outline-secondary px-3" onclick="manualLogout()">Start Over</button>
         </div>
       </div>
     </div>
@@ -103,7 +118,6 @@
             </button>
           </li>
         </ul>
-        <button class="btn btn-outline-danger btn-sm fw-bold" onclick="resetAppSession()">🚪 Logout / Start Over</button>
       </div>
     </div>
 
@@ -117,8 +131,6 @@
         <div class="d-flex align-items-center gap-2 mt-2 mt-md-0">
           <button class="btn btn-outline-primary btn-sm fw-bold" onclick="openPricingModal()">⭐ Upgrade Plan</button>
           <div id="quotaBadge"></div>
-          <!-- User Logout / Clear Button -->
-          <button class="btn btn-outline-danger btn-sm fw-bold ms-2" onclick="resetAppSession()" title="Logout and clear current records">🚪 Logout</button>
         </div>
       </div>
 
@@ -277,7 +289,6 @@
           </div>
           <div class="col-12 mt-3">
             <button type="submit" id="saveBtn" class="btn btn-success px-4 py-2 fw-bold">
-              <span id="saveSpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
               Save Document
             </button>
           </div>
@@ -359,7 +370,6 @@
             <div class="d-flex justify-content-end gap-2 mt-4">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
               <button type="submit" id="saveEditBtn" class="btn btn-primary fw-bold px-4">
-                <span id="saveEditSpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
                 Save Changes
               </button>
             </div>
@@ -502,6 +512,28 @@
     let devEmail = "developer@example.com";
     let resendTimerInterval = null;
 
+    // 5-Minute Inactivity / Idle Auto-Logout Tracker
+    const IDLE_LIMIT_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
+    let idleTimer = null;
+
+    function resetIdleTimer() {
+      if (!activePhone) return;
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        autoLogoutDueToInactivity();
+      }, IDLE_LIMIT_MS);
+    }
+
+    function autoLogoutDueToInactivity() {
+      if (!activePhone) return;
+      resetAppSession(true); // true indicates logout happened due to idle time
+    }
+
+    // Attach user activity listeners
+    ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
+      window.addEventListener(evt, resetIdleTimer, { passive: true });
+    });
+
     document.addEventListener("DOMContentLoaded", function() {
       snoozeModalInstance = new bootstrap.Modal(document.getElementById('snoozeModal'));
       pricingModalInstance = new bootstrap.Modal(document.getElementById('pricingModal'));
@@ -517,7 +549,6 @@
       return String(id || "").toLowerCase().replace(/[\s\-_]/g, "");
     }
 
-    // Helper: Show "Saved Successfully" Banner
     function showSuccessToast(message) {
       const alertBox = document.getElementById("globalSuccessAlert");
       const alertText = document.getElementById("globalSuccessText");
@@ -525,17 +556,13 @@
       alertBox.classList.remove("d-none");
       alertBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-      // Auto dismiss after 4.5 seconds
       setTimeout(() => {
         alertBox.classList.add("d-none");
       }, 4500);
     }
 
-    // Helper: Start 60s Resend OTP Countdown
     function startResendCountdown(durationSeconds = 60) {
       const resendBtn = document.getElementById("resendOtpBtn");
-      const countdownSpan = document.getElementById("countdownSpan");
-      
       clearInterval(resendTimerInterval);
       let remaining = durationSeconds;
 
@@ -559,11 +586,15 @@
       handleLookup();
     }
 
-    // Feature: Clear Session / Logout / Start Over
-    function resetAppSession() {
-      if (!confirm("Are you sure you want to log out and start over?")) return;
+    function manualLogout() {
+      if (!confirm("Are you sure you want to log out?")) return;
+      resetAppSession(false);
+    }
 
+    function resetAppSession(isIdleTimeout = false) {
       clearInterval(resendTimerInterval);
+      clearTimeout(idleTimer);
+
       activePhone = "";
       isUserAdmin = false;
       currentUserData = null;
@@ -576,7 +607,8 @@
       document.getElementById("otpErrorAlert").classList.add("d-none");
       document.getElementById("globalSuccessAlert").classList.add("d-none");
 
-      // Hide all dynamic sections
+      // Hide all dynamic panels
+      document.getElementById("userHeaderBar").classList.add("d-none");
       document.getElementById("otpCard").classList.add("d-none");
       document.getElementById("recordsSection").classList.add("d-none");
       document.getElementById("addDocSection").classList.add("d-none");
@@ -585,8 +617,15 @@
       document.getElementById("upgradeCard").classList.add("d-none");
       document.getElementById("blockedAlertCard").classList.add("d-none");
 
-      // Show Step 1 card
+      // Show Step 1 card again
       document.getElementById("loginCard").classList.remove("d-none");
+
+      if (isIdleTimeout) {
+        document.getElementById("sessionTimeoutAlert").classList.remove("d-none");
+      } else {
+        document.getElementById("sessionTimeoutAlert").classList.add("d-none");
+      }
+
       document.getElementById("searchPhone").focus();
     }
 
@@ -606,6 +645,7 @@
       const sp = document.getElementById("lookupSpinner");
 
       errBox.classList.add("d-none");
+      document.getElementById("sessionTimeoutAlert").classList.add("d-none");
       document.getElementById("blockedAlertCard").classList.add("d-none");
 
       if (!validatePhone(phoneInput)) {
@@ -639,7 +679,6 @@
           document.getElementById("addDocSection").classList.add("d-none");
           document.getElementById("upgradeCard").classList.add("d-none");
           
-          // Trigger the 60s countdown
           startResendCountdown(60);
         } else {
           // New unregistered user
@@ -657,6 +696,7 @@
     function showBlockedScreen(email) {
       document.getElementById("loginCard").classList.add("d-none");
       document.getElementById("otpCard").classList.add("d-none");
+      document.getElementById("userHeaderBar").classList.add("d-none");
       document.getElementById("recordsSection").classList.add("d-none");
       document.getElementById("addDocSection").classList.add("d-none");
       document.getElementById("upgradeCard").classList.add("d-none");
@@ -717,6 +757,15 @@
       allFetchedDocs = docs;
       currentUserData = user;
       lockedUserEmail = lockedEmail || (user ? user.email : "");
+
+      // 1. Hide Step 1 card and show the Greeting Bar
+      document.getElementById("loginCard").classList.add("d-none");
+      document.getElementById("userHeaderBar").classList.remove("d-none");
+      document.getElementById("greetingPhone").innerText = activePhone;
+
+      // Start 5-minute idle countdown
+      resetIdleTimer();
+
       document.getElementById("recordsSection").classList.remove("d-none");
 
       const quotaBadge = document.getElementById("quotaBadge");
@@ -752,6 +801,7 @@
         }
       }
 
+      // Enforce locked email
       const emailField = document.getElementById("formEmail");
       const lockedNotice = document.getElementById("emailLockedNotice");
       if (lockedUserEmail) {
@@ -939,10 +989,10 @@
       editDocModalInstance.show();
     }
 
+    // Save Edit with Complete Lock on Button until Toast Message
     async function submitEditDoc(e) {
       e.preventDefault();
       const btn = document.getElementById("saveEditBtn");
-      const sp = document.getElementById("saveEditSpinner");
       const errBox = document.getElementById("editDocAlert");
 
       errBox.classList.add("d-none");
@@ -975,8 +1025,9 @@
         return;
       }
 
+      // Lock button immediately
       btn.disabled = true;
-      sp.classList.remove("d-none");
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Saving Changes...`;
 
       const payload = {
         phone: activePhone,
@@ -992,8 +1043,6 @@
 
       try {
         const res = await apiRequest("updateDocument", payload);
-        btn.disabled = false;
-        sp.classList.add("d-none");
 
         if (res.success) {
           editDocModalInstance.hide();
@@ -1004,17 +1053,37 @@
           errBox.classList.remove("d-none");
         }
       } catch (err) {
-        btn.disabled = false;
-        sp.classList.add("d-none");
         errBox.innerText = "Error saving changes. Please try again.";
         errBox.classList.remove("d-none");
+      } finally {
+        // Release button lock after processing
+        btn.disabled = false;
+        btn.innerText = "Save Changes";
       }
     }
 
+    // Clear Add Form Fields
+    function clearAddFormFields() {
+      document.getElementById("personName").value = "";
+      document.getElementById("docId").value = "";
+      document.getElementById("expiryDate").value = "";
+      document.getElementById("relationship").selectedIndex = 0;
+      document.getElementById("docTypeSelect").selectedIndex = 0;
+      document.getElementById("customDocTypeInput").value = "";
+      document.getElementById("customDocTypeInput").classList.add("d-none");
+      document.getElementById("alertDays").value = "30";
+
+      if (lockedUserEmail) {
+        document.getElementById("formEmail").value = lockedUserEmail;
+      } else {
+        document.getElementById("formEmail").value = "";
+      }
+    }
+
+    // Save New Document with Complete Lock on Button until Toast Message
     async function submitDoc(e) {
       e.preventDefault();
       const btn = document.getElementById("saveBtn");
-      const sp = document.getElementById("saveSpinner");
       const alertBox = document.getElementById("addDocAlert");
 
       alertBox.classList.add("d-none");
@@ -1045,8 +1114,9 @@
         return;
       }
 
+      // Lock button immediately
       btn.disabled = true;
-      sp.classList.remove("d-none");
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Saving Document...`;
 
       const payload = {
         phone: activePhone,
@@ -1061,8 +1131,6 @@
 
       try {
         const res = await apiRequest("addDocument", payload);
-        btn.disabled = false;
-        sp.classList.add("d-none");
 
         if (res.isBlocked) {
           showBlockedScreen(res.developerEmail || devEmail);
@@ -1070,9 +1138,10 @@
         }
 
         if (res.success) {
-          document.getElementById("docForm").reset();
-          document.getElementById("customDocTypeInput").classList.add("d-none");
+          // Clear all form inputs
+          clearAddFormFields();
           renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail);
+          // Show the green toast notification
           showSuccessToast("Document registered and saved successfully!");
         } else {
           alertBox.innerText = res.message;
@@ -1080,10 +1149,12 @@
           if (res.limitReached) openPricingModal();
         }
       } catch (err) {
-        btn.disabled = false;
-        sp.classList.add("d-none");
         alertBox.innerText = "Failed to save document. Please check your network and try again.";
         alertBox.classList.remove("d-none");
+      } finally {
+        // Release button lock after processing
+        btn.disabled = false;
+        btn.innerText = "Save Document";
       }
     }
 
@@ -1120,19 +1191,24 @@
 
       const btn = document.getElementById("confirmSnoozeBtn");
       btn.disabled = true;
-      btn.innerText = "Applying...";
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Applying...`;
 
-      const res = await apiRequest("snooze", { phone: activePhone, row: currentSnoozeTarget.row, days: days });
-      btn.disabled = false;
-      btn.innerText = "Apply Snooze";
-
-      if (res.success) {
-        snoozeModalInstance.hide();
-        renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail);
-        showSuccessToast(`Alert snoozed for ${days} days.`);
-      } else {
-        alertBox.innerText = res.message;
+      try {
+        const res = await apiRequest("snooze", { phone: activePhone, row: currentSnoozeTarget.row, days: days });
+        if (res.success) {
+          snoozeModalInstance.hide();
+          renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail);
+          showSuccessToast(`Alert snoozed for ${days} days.`);
+        } else {
+          alertBox.innerText = res.message;
+          alertBox.classList.remove("d-none");
+        }
+      } catch(err) {
+        alertBox.innerText = "Error applying snooze.";
         alertBox.classList.remove("d-none");
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Apply Snooze";
       }
     }
 
