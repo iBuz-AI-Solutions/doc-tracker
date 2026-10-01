@@ -65,6 +65,26 @@
       <div id="phoneError" class="alert alert-danger d-none mt-2 p-2 small"></div>
     </div>
 
+    <!-- Step 1b: New user - verify e-mail first -->
+    <div class="card p-4 d-none border-success" id="registerCard">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="fw-bold text-success mb-0">New Here? Create Your Account</h5>
+        <button class="btn btn-sm btn-outline-danger" onclick="manualLogout()">Cancel & Change Number</button>
+      </div>
+      <p class="text-muted small mb-2">We could not find this mobile number. Enter the email where you want alerts. We will send a 6-digit code to verify it. <strong>This email will be permanently linked to your number.</strong></p>
+      <div class="row g-2 align-items-center">
+        <div class="col-md-8">
+          <input type="email" id="regEmail" maxlength="120" class="form-control form-control-lg" placeholder="your-email@example.com">
+        </div>
+        <div class="col-md-4">
+          <button class="btn btn-success btn-lg w-100" id="regStartBtn" onclick="handleRegisterStart()">
+            <span id="regSpinner" class="spinner-border spinner-border-sm d-none me-1"></span>Send Code
+          </button>
+        </div>
+      </div>
+      <div id="regErrorAlert" class="alert alert-danger d-none mt-2 p-2 small"></div>
+    </div>
+
     <!-- Step 1.5: Security Check (OTP) with Countdown Timer -->
     <div class="card p-4 d-none border-primary" id="otpCard">
       <div class="d-flex justify-content-between align-items-center mb-2">
@@ -239,7 +259,7 @@
           </div>
           <div class="col-md-6">
             <label class="form-label fw-bold small">Document Holder's Full Name</label>
-            <input type="text" id="personName" class="form-control" required placeholder="e.g. John Doe">
+            <input type="text" id="personName" maxlength="80" class="form-control" required placeholder="e.g. John Doe">
           </div>
           <div class="col-md-6">
             <label class="form-label fw-bold small">Relationship</label>
@@ -265,11 +285,11 @@
               <option value="Tenancy / Rent Agreement">Tenancy / Rent Agreement</option>
               <option value="__NEW__">+ Add Custom Document Type...</option>
             </select>
-            <input type="text" id="customDocTypeInput" class="form-control mt-2 d-none" placeholder="Enter new document type name">
+            <input type="text" id="customDocTypeInput" maxlength="80" class="form-control mt-2 d-none" placeholder="Enter new document type name">
           </div>
           <div class="col-md-6">
             <label class="form-label fw-bold small">Document Number / ID</label>
-            <input type="text" id="docId" class="form-control" required placeholder="e.g. Passport or License number">
+            <input type="text" id="docId" maxlength="80" class="form-control" required placeholder="e.g. Passport or License number">
           </div>
           <div class="col-md-6">
             <label class="form-label fw-bold small">Expiry Date</label>
@@ -318,7 +338,7 @@
               </div>
               <div class="col-md-6">
                 <label class="form-label fw-bold small">Person Full Name</label>
-                <input type="text" id="editPersonName" class="form-control" required>
+                <input type="text" id="editPersonName" maxlength="80" class="form-control" required>
               </div>
               <div class="col-md-6">
                 <label class="form-label fw-bold small">Relationship</label>
@@ -344,11 +364,11 @@
                   <option value="Tenancy / Rent Agreement">Tenancy / Rent Agreement</option>
                   <option value="__NEW__">+ Add Custom Document Type...</option>
                 </select>
-                <input type="text" id="editCustomDocTypeInput" class="form-control mt-2 d-none" placeholder="Enter custom type">
+                <input type="text" id="editCustomDocTypeInput" maxlength="80" class="form-control mt-2 d-none" placeholder="Enter custom type">
               </div>
               <div class="col-md-6">
                 <label class="form-label fw-bold small">Document Number / ID</label>
-                <input type="text" id="editDocId" class="form-control" required>
+                <input type="text" id="editDocId" maxlength="80" class="form-control" required>
               </div>
               <div class="col-md-6">
                 <label class="form-label fw-bold small">Expiry Date</label>
@@ -511,6 +531,20 @@
     let editDocModalInstance = null;
     let devEmail = "developer@example.com";
     let resendTimerInterval = null;
+    let sessionToken = "";      // kept in memory only (never saved in the browser)
+    let registerMode = false;   // true while a NEW user is verifying an email
+    let regEmailValue = "";
+
+    // Escape any text before putting it into HTML (blocks script injection)
+    function esc(v) {
+      return String(v == null ? "" : v).replace(/[&<>"']/g, c =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+    // Read yyyy-mm-dd as a LOCAL date (no timezone shifting)
+    function parseYmd(str) {
+      const m = String(str || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(NaN);
+    }
 
     // 5-Minute Inactivity / Idle Auto-Logout Tracker
     const IDLE_LIMIT_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
@@ -552,7 +586,7 @@
     function showSuccessToast(message) {
       const alertBox = document.getElementById("globalSuccessAlert");
       const alertText = document.getElementById("globalSuccessText");
-      alertText.innerHTML = `<strong>Success!</strong> ${message}`;
+      alertText.innerHTML = `<strong>Success!</strong> ${esc(message)}`;
       alertBox.classList.remove("d-none");
       alertBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
@@ -583,7 +617,7 @@
     }
 
     function handleResendOtp() {
-      handleLookup();
+      if (registerMode) { handleRegisterStart(true); } else { handleLookup(); }
     }
 
     function manualLogout() {
@@ -592,6 +626,14 @@
     }
 
     function resetAppSession(isIdleTimeout = false) {
+      if (sessionToken) {
+        fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "logout", token: sessionToken, data: {} }) }).catch(() => {});
+      }
+      sessionToken = ""; registerMode = false; regEmailValue = "";
+      document.getElementById("registerCard").classList.add("d-none");
+      document.getElementById("regEmail").value = "";
+      document.getElementById("regErrorAlert").classList.add("d-none");
       clearInterval(resendTimerInterval);
       clearTimeout(idleTimer);
 
@@ -633,9 +675,13 @@
       const response = await fetch(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ action: action, data: data })
+        body: JSON.stringify({ action: action, token: sessionToken, data: data })
       });
-      return await response.json();
+      let res;
+      try { res = await response.json(); } catch (e) { return { success: false, message: "Unexpected server response. Please try again." }; }
+      if (res && res.sessionExpired) { resetAppSession(true); }
+      if (res && res.isBlocked && sessionToken) { sessionToken = ""; showBlockedScreen(res.developerEmail || devEmail); }
+      return res || { success: false, message: "Empty response from server." };
     }
 
     async function handleLookup() {
@@ -670,7 +716,13 @@
           return;
         }
 
-        isUserAdmin = res.isAdmin || false;
+        if (res.success === false) {
+          errBox.innerText = res.message || "Could not continue. Please try again.";
+          errBox.classList.remove("d-none");
+          return;
+        }
+
+        registerMode = false;
 
         if (res.requiresOtp) {
           document.getElementById("otpCard").classList.remove("d-none");
@@ -681,9 +733,11 @@
           
           startResendCountdown(60);
         } else {
-          // New unregistered user
+          // New unregistered user -> verify email first
           document.getElementById("otpCard").classList.add("d-none");
-          renderGrid([], false, { plan: "FREE" }, 5, "");
+          document.getElementById("loginCard").classList.add("d-none");
+          document.getElementById("registerCard").classList.remove("d-none");
+          document.getElementById("regEmail").focus();
         }
       } catch (err) {
         btn.disabled = false;
@@ -693,7 +747,44 @@
       }
     }
 
+    async function handleRegisterStart(isResend = false) {
+      const errBox = document.getElementById("regErrorAlert");
+      const btn = document.getElementById("regStartBtn");
+      const sp = document.getElementById("regSpinner");
+      errBox.classList.add("d-none");
+      const email = isResend ? regEmailValue : document.getElementById("regEmail").value.trim().toLowerCase();
+      if (!/^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/.test(email)) {
+        errBox.innerText = "Please enter a valid email address.";
+        errBox.classList.remove("d-none");
+        return;
+      }
+      btn.disabled = true; sp.classList.remove("d-none");
+      try {
+        const res = await apiRequest("registerStart", { phone: activePhone, email: email });
+        btn.disabled = false; sp.classList.add("d-none");
+        if (!res.success) {
+          const target = isResend ? document.getElementById("otpErrorAlert") : errBox;
+          target.innerText = res.message || "Could not send the code.";
+          target.classList.remove("d-none");
+          return;
+        }
+        registerMode = true; regEmailValue = email;
+        document.getElementById("registerCard").classList.add("d-none");
+        document.getElementById("otpCard").classList.remove("d-none");
+        document.getElementById("otpNotice").innerText =
+          `A 6-digit verification code has been sent to ${res.maskedEmail}. Enter it below to create your account.`;
+        document.getElementById("otpInput").value = "";
+        document.getElementById("otpErrorAlert").classList.add("d-none");
+        startResendCountdown(60);
+      } catch (err) {
+        btn.disabled = false; sp.classList.add("d-none");
+        errBox.innerText = "Connection error. Please check your network and try again.";
+        errBox.classList.remove("d-none");
+      }
+    }
+
     function showBlockedScreen(email) {
+      document.getElementById("registerCard").classList.add("d-none");
       document.getElementById("loginCard").classList.add("d-none");
       document.getElementById("otpCard").classList.add("d-none");
       document.getElementById("userHeaderBar").classList.add("d-none");
@@ -736,7 +827,8 @@
         if (res.success) {
           clearInterval(resendTimerInterval);
           document.getElementById("otpCard").classList.add("d-none");
-          isUserAdmin = res.isAdmin;
+          isUserAdmin = res.isAdmin === true;
+          sessionToken = res.token || "";
           currentUserData = res.user;
           lockedUserEmail = res.lockedEmail || "";
           if (res.developerEmail) devEmail = res.developerEmail;
@@ -789,13 +881,13 @@
         userPlanInfo.innerText = `Plan: ${planName} (${docs.length} of ${planLimit} documents registered)`;
 
         if (docs.length >= planLimit) {
-          quotaBadge.innerHTML = `<span class="badge bg-danger p-2">${planName}: Limit Reached (${docs.length}/${planLimit})</span>`;
+          quotaBadge.innerHTML = `<span class="badge bg-danger p-2">${esc(planName)}: Limit Reached (${docs.length}/${planLimit})</span>`;
           document.getElementById("quotaLimitText").innerText = 
             `You have used all ${planLimit} document slots on your ${planName} plan. Upgrade to save more documents.`;
           upgradeCard.classList.remove("d-none");
           addSection.classList.add("d-none");
         } else {
-          quotaBadge.innerHTML = `<span class="badge bg-success p-2">${planName}: ${docs.length} / ${planLimit} Used</span>`;
+          quotaBadge.innerHTML = `<span class="badge bg-success p-2">${esc(planName)}: ${docs.length} / ${planLimit} Used</span>`;
           upgradeCard.classList.add("d-none");
           addSection.classList.remove("d-none");
         }
@@ -827,7 +919,11 @@
       const types = Array.from(new Set(docs.map(d => d.docType).filter(Boolean)));
 
       filterSelect.innerHTML = '<option value="">All Document Types</option>';
-      types.forEach(t => { filterSelect.innerHTML += `<option value="${t}">${t}</option>`; });
+      types.forEach(t => {
+        const o = document.createElement("option");
+        o.value = t; o.textContent = t;
+        filterSelect.appendChild(o);
+      });
 
       [formSelect, editSelect].forEach(select => {
         types.forEach(t => {
@@ -885,9 +981,9 @@
         const matchesType = !type || doc.docType === type;
         const matchesRelation = !relation || doc.relationship === relation;
 
-        const exp = new Date(doc.expiryDate); exp.setHours(0,0,0,0);
+        const exp = parseYmd(doc.expiryDate); exp.setHours(0,0,0,0);
         const diffDays = Math.ceil((exp - now) / 86400000);
-        const isSnoozed = doc.snoozeUntil && now < new Date(doc.snoozeUntil);
+        const isSnoozed = doc.snoozeUntil && now < parseYmd(doc.snoozeUntil);
 
         let calcStatus = "ACTIVE";
         if (doc.status === "STOPPED") calcStatus = "STOPPED";
@@ -914,7 +1010,7 @@
       const now = new Date(); now.setHours(0,0,0,0);
 
       docs.forEach(doc => {
-        const exp = new Date(doc.expiryDate); exp.setHours(0,0,0,0);
+        const exp = parseYmd(doc.expiryDate); exp.setHours(0,0,0,0);
         const diffDays = Math.ceil((exp - now) / 86400000);
 
         let badge = '<span class="badge bg-success">Valid</span>';
@@ -927,34 +1023,43 @@
         }
 
         if (doc.status !== "STOPPED" && doc.snoozeUntil) {
-          const snz = new Date(doc.snoozeUntil); snz.setHours(0,0,0,0);
-          if (now < snz) badge += ` <span class="badge bg-info text-dark">Snoozed till ${doc.snoozeUntil}</span>`;
+          const snz = parseYmd(doc.snoozeUntil); snz.setHours(0,0,0,0);
+          if (now < snz) badge += ` <span class="badge bg-info text-dark">Snoozed till ${esc(doc.snoozeUntil)}</span>`;
         }
 
-        let editBtn = `<button class="btn btn-outline-primary btn-sm me-1" onclick='openEditModal(${JSON.stringify(doc)})'>Edit</button>`;
+        let editBtn = `<button class="btn btn-outline-primary btn-sm me-1" onclick="openEditByRow(${Number(doc.row)})">Edit</button>`;
 
         let snoozeBtn = "";
         if (diffDays > 0 && doc.status !== "STOPPED") {
-          snoozeBtn = `<button class="btn btn-outline-warning btn-sm me-1" onclick='openSnoozeModal(${JSON.stringify(doc)}, ${diffDays})'>Snooze</button>`;
+          snoozeBtn = `<button class="btn btn-outline-warning btn-sm me-1" onclick="openSnoozeByRow(${Number(doc.row)}, ${diffDays})">Snooze</button>`;
         }
 
         let toggleBtn = (doc.status === "STOPPED")
-          ? `<button class="btn btn-outline-success btn-sm" onclick="toggleStatus(${doc.row}, '${doc.status}')">Turn Alerts On</button>`
-          : `<button class="btn btn-outline-danger btn-sm" onclick="toggleStatus(${doc.row}, '${doc.status}')">Stop Alert</button>`;
+          ? `<button class="btn btn-outline-success btn-sm" onclick="toggleStatus(${Number(doc.row)})">Turn Alerts On</button>`
+          : `<button class="btn btn-outline-danger btn-sm" onclick="toggleStatus(${Number(doc.row)})">Stop Alert</button>`;
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          ${isUserAdmin ? `<td><code>${doc.phone}</code></td>` : ''}
-          <td><strong>${doc.personName}</strong></td>
-          <td>${doc.relationship}</td>
-          <td>${doc.docType}</td>
-          <td><code>${doc.docId}</code></td>
-          <td>${doc.expiryDate}</td>
+          ${isUserAdmin ? `<td><code>${esc(doc.phone)}</code></td>` : ''}
+          <td><strong>${esc(doc.personName)}</strong></td>
+          <td>${esc(doc.relationship)}</td>
+          <td>${esc(doc.docType)}</td>
+          <td><code>${esc(doc.docId)}</code></td>
+          <td>${esc(doc.expiryDate)}</td>
           <td>${badge}</td>
           <td>${editBtn}${snoozeBtn}${toggleBtn}</td>
         `;
         tbody.appendChild(tr);
       });
+    }
+
+    function openEditByRow(row) {
+      const doc = allFetchedDocs.find(d => d.row === row);
+      if (doc) openEditModal(doc);
+    }
+    function openSnoozeByRow(row, maxDays) {
+      const doc = allFetchedDocs.find(d => d.row === row);
+      if (doc) openSnoozeModal(doc, maxDays);
     }
 
     function openEditModal(doc) {
@@ -1158,13 +1263,17 @@
       }
     }
 
-    async function toggleStatus(row, currentStatus) {
+    async function toggleStatus(row) {
+      const target = allFetchedDocs.find(d => d.row === row);
+      const currentStatus = target ? target.status : "ACTIVE";
       const willStop = currentStatus !== "STOPPED";
       if (!confirm(`Are you sure you want to ${willStop ? "stop" : "turn on"} notifications for this document?`)) return;
       const res = await apiRequest("toggleStatus", { phone: activePhone, row: row, status: currentStatus });
       if (res.success) {
         renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail);
         showSuccessToast(willStop ? "Alerts paused for this document." : "Alerts resumed for this document.");
+      } else if (!res.sessionExpired) {
+        alert(res.message || "Could not update. Please try again.");
       }
     }
 
@@ -1219,6 +1328,8 @@
       const res = await apiRequest("requestPlanUpgrade", { phone: activePhone, requestedPlan: plan });
       if (res.success) {
         showSuccessToast(`Upgrade request for ${plan} Plan submitted! An email notification has been dispatched.`);
+      } else if (!res.sessionExpired) {
+        alert(res.message || "Could not submit the request. Please try again.");
       }
     }
 
@@ -1248,8 +1359,8 @@
       const tbody = document.getElementById("adminUserTableBody");
       tbody.innerHTML = `<tr><td colspan="7" class="text-center py-3"><span class="spinner-border spinner-border-sm me-2"></span>Loading users...</td></tr>`;
 
-      const res = await apiRequest("adminGetUsers", { adminPhone: activePhone });
-      if (!res.success) { tbody.innerHTML = `<tr><td colspan="7" class="text-danger text-center">Failed to load users.</td></tr>`; return; }
+      const res = await apiRequest("adminGetUsers", {});
+      if (!res.success) { tbody.innerHTML = `<tr><td colspan="7" class="text-danger text-center">${esc(res.message || "Failed to load users.")}</td></tr>`; return; }
 
       tbody.innerHTML = "";
       let hasPendingRequests = false;
@@ -1258,16 +1369,16 @@
         let reqBadge = '<span class="text-muted small">None</span>';
         if (u.requestedPlan) {
           hasPendingRequests = true;
-          reqBadge = `<span class="req-badge">🔔 Req: ${u.requestedPlan}</span>`;
+          reqBadge = `<span class="req-badge">🔔 Req: ${esc(u.requestedPlan)}</span>`;
         }
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td><strong>${u.phone}</strong></td>
-          <td>${u.email || '<span class="text-muted">Not Set</span>'}</td>
+          <td><strong>${esc(u.phone)}</strong></td>
+          <td>${u.email ? esc(u.email) : '<span class="text-muted">Not Set</span>'}</td>
           <td><span class="badge bg-secondary">${u.docCount} docs</span></td>
           <td>
-            <select class="form-select form-select-sm" onchange="updateUserPlan('${u.phone}', this.value)">
+            <select class="form-select form-select-sm" data-phone="${esc(u.phone)}" onchange="updateUserPlan(this.dataset.phone, this.value)">
               <option value="FREE" ${u.plan === 'FREE' ? 'selected' : ''}>FREE (5)</option>
               <option value="BASIC" ${u.plan === 'BASIC' ? 'selected' : ''}>BASIC (50)</option>
               <option value="ADVANCED" ${u.plan === 'ADVANCED' ? 'selected' : ''}>ADVANCED (125)</option>
@@ -1275,9 +1386,9 @@
             </select>
           </td>
           <td>${reqBadge}</td>
-          <td><span class="badge ${u.status === 'ACTIVE' ? 'bg-success' : 'bg-danger'}">${u.status}</span></td>
+          <td><span class="badge ${u.status === 'ACTIVE' ? 'bg-success' : 'bg-danger'}">${esc(u.status)}</span></td>
           <td>
-            <button class="btn btn-sm ${u.status === 'ACTIVE' ? 'btn-outline-danger' : 'btn-outline-success'}" onclick="toggleUserBlock('${u.phone}', '${u.status}')">
+            <button class="btn btn-sm ${u.status === 'ACTIVE' ? 'btn-outline-danger' : 'btn-outline-success'}" data-phone="${esc(u.phone)}" data-status="${esc(u.status)}" onclick="toggleUserBlock(this.dataset.phone, this.dataset.status)">
               ${u.status === 'ACTIVE' ? 'Block User' : 'Unblock User'}
             </button>
           </td>
@@ -1295,17 +1406,19 @@
 
     async function updateUserPlan(targetPhone, newPlan) {
       if (!confirm(`Confirm upgrade for ${targetPhone} to ${newPlan} plan?`)) return;
-      await apiRequest("adminUpdateUser", { adminPhone: activePhone, targetPhone: targetPhone, newPlan: newPlan });
+      const r = await apiRequest("adminUpdateUser", { targetPhone: targetPhone, newPlan: newPlan });
       loadAdminUsers();
-      showSuccessToast(`User plan updated to ${newPlan}.`);
+      if (r.success) showSuccessToast(`User plan updated to ${newPlan}.`);
+      else if (!r.sessionExpired) alert(r.message || "Update failed.");
     }
 
     async function toggleUserBlock(targetPhone, currentStatus) {
       const newStatus = (currentStatus === "ACTIVE") ? "BLOCKED" : "ACTIVE";
       if (!confirm(`Are you sure you want to change ${targetPhone} to ${newStatus}?`)) return;
-      await apiRequest("adminUpdateUser", { adminPhone: activePhone, targetPhone: targetPhone, newStatus: newStatus });
+      const r = await apiRequest("adminUpdateUser", { targetPhone: targetPhone, newStatus: newStatus });
       loadAdminUsers();
-      showSuccessToast(`User status changed to ${newStatus}.`);
+      if (r.success) showSuccessToast(`User status changed to ${newStatus}.`);
+      else if (!r.sessionExpired) alert(r.message || "Update failed.");
     }
   </script>
 </body>
