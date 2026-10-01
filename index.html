@@ -12,6 +12,8 @@
     .pricing-card { border: 2px solid #e2e8f0; transition: transform 0.2s; }
     .pricing-card:hover { transform: translateY(-4px); border-color: #3182ce; }
     .req-badge { background-color: #feebc8; color: #7b341e; border: 1px solid #fbd38d; font-weight: bold; padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; }
+    .locked-email-input { background-color: #edf2f7 !important; cursor: not-allowed; }
+    .toast-alert { border-left: 5px solid #2f855a; font-weight: 500; }
   </style>
 </head>
 <body>
@@ -22,6 +24,12 @@
       <p class="text-muted">Keep track of passports, licenses, visas, and family documents with automatic alerts</p>
     </div>
 
+    <!-- Global Toast Alert for Save/Update Confirmations -->
+    <div id="globalSuccessAlert" class="alert alert-success d-none toast-alert shadow-sm py-3 px-4 mb-3 d-flex justify-content-between align-items-center" role="alert">
+      <div id="globalSuccessText"></div>
+      <button type="button" class="btn-close" onclick="document.getElementById('globalSuccessAlert').classList.add('d-none')"></button>
+    </div>
+
     <!-- Step 1: User Mobile Number Entry -->
     <div class="card p-4" id="loginCard">
       <h5 class="fw-bold">Step 1: Access Your Records</h5>
@@ -29,7 +37,7 @@
       <div class="row g-2 align-items-center">
         <div class="col-md-8">
           <input type="tel" id="searchPhone" class="form-control form-control-lg" placeholder="e.g. 96891234567 or 919876543210">
-          <small class="text-muted">Enter 7 to 15 digits (including your country code if applicable)</small>
+          <small class="text-muted">Enter 7 to 15 digits (digits only, no spaces or special symbols)</small>
         </div>
         <div class="col-md-4">
           <button class="btn btn-primary btn-lg w-100" id="lookupBtn" onclick="handleLookup()">
@@ -41,22 +49,28 @@
       <div id="phoneError" class="alert alert-danger d-none mt-2 p-2 small"></div>
     </div>
 
-    <!-- Step 1.5: Security Check (OTP) -->
+    <!-- Step 1.5: Security Check (OTP) with Countdown Timer -->
     <div class="card p-4 d-none border-primary" id="otpCard">
-      <h5 class="fw-bold text-primary">Security Verification</h5>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="fw-bold text-primary mb-0">Security Verification</h5>
+        <button class="btn btn-sm btn-outline-danger" onclick="resetAppSession()">Change Number</button>
+      </div>
       <p class="text-muted small mb-2" id="otpNotice"></p>
       <div class="row g-2 align-items-center">
-        <div class="col-md-6">
-          <input type="text" id="otpInput" class="form-control form-control-lg" maxlength="6" placeholder="Enter 6-digit code">
+        <div class="col-md-5">
+          <input type="text" id="otpInput" class="form-control form-control-lg text-center fw-bold" maxlength="6" placeholder="Enter 6-digit code">
         </div>
         <div class="col-md-3">
-          <button class="btn btn-success btn-lg w-100" id="verifyOtpBtn" onclick="verifyOtp()">
+          <button class="btn btn-success btn-lg w-100 fw-bold" id="verifyOtpBtn" onclick="verifyOtp()">
             <span id="verifySpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
             Verify
           </button>
         </div>
-        <div class="col-md-3">
-          <button class="btn btn-outline-secondary btn-lg w-100" onclick="handleLookup()">Resend Code</button>
+        <div class="col-md-4">
+          <!-- Countdown-controlled Resend Button -->
+          <button class="btn btn-outline-secondary btn-lg w-100" id="resendOtpBtn" onclick="handleResendOtp()" disabled>
+            Resend in <span id="countdownSpan">60</span>s
+          </button>
         </div>
       </div>
       <div id="otpErrorAlert" class="alert alert-danger d-none mt-2 p-2 small"></div>
@@ -68,23 +82,29 @@
         <h4 class="text-danger fw-bold">⚠️ Access Suspended</h4>
         <p class="text-dark mt-2 mb-3">Your mobile number / account has been deactivated by administration.</p>
         <p class="text-muted small">Please contact support to resolve this issue.</p>
-        <a id="contactAdminBlockedBtn" href="#" class="btn btn-danger px-4">Contact Administrator via Email</a>
+        <div class="d-flex justify-content-center gap-2">
+          <a id="contactAdminBlockedBtn" href="#" class="btn btn-danger px-4">Contact Administrator via Email</a>
+          <button class="btn btn-outline-secondary px-3" onclick="resetAppSession()">Start Over</button>
+        </div>
       </div>
     </div>
 
     <!-- Navigation Tabs for Admin -->
     <div id="adminNavTabs" class="d-none mb-3">
-      <ul class="nav nav-pills">
-        <li class="nav-item">
-          <button class="nav-link active fw-bold" id="tabDocsBtn" onclick="switchAdminTab('docs')">All Documents Grid</button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link fw-bold" id="tabUsersBtn" onclick="switchAdminTab('users')">
-            User Management & Plans
-            <span id="adminPendingReqBadge" class="badge bg-danger ms-1 d-none">New Requests</span>
-          </button>
-        </li>
-      </ul>
+      <div class="d-flex justify-content-between align-items-center">
+        <ul class="nav nav-pills">
+          <li class="nav-item">
+            <button class="nav-link active fw-bold" id="tabDocsBtn" onclick="switchAdminTab('docs')">All Documents Grid</button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link fw-bold" id="tabUsersBtn" onclick="switchAdminTab('users')">
+              User Management & Plans
+              <span id="adminPendingReqBadge" class="badge bg-danger ms-1 d-none">New Requests</span>
+            </button>
+          </li>
+        </ul>
+        <button class="btn btn-outline-danger btn-sm fw-bold" onclick="resetAppSession()">🚪 Logout / Start Over</button>
+      </div>
     </div>
 
     <!-- 2. Documents Section -->
@@ -97,6 +117,8 @@
         <div class="d-flex align-items-center gap-2 mt-2 mt-md-0">
           <button class="btn btn-outline-primary btn-sm fw-bold" onclick="openPricingModal()">⭐ Upgrade Plan</button>
           <div id="quotaBadge"></div>
+          <!-- User Logout / Clear Button -->
+          <button class="btn btn-outline-danger btn-sm fw-bold ms-2" onclick="resetAppSession()" title="Logout and clear current records">🚪 Logout</button>
         </div>
       </div>
 
@@ -148,7 +170,7 @@
               <th>Document ID</th>
               <th>Expiry Date</th>
               <th>Status</th>
-              <th>Action</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody id="docTableBody"></tbody>
@@ -193,11 +215,15 @@
     <div class="card p-4 d-none" id="addDocSection">
       <h5 class="fw-bold">Add a New Document</h5>
       <p class="text-muted small">Save document details for yourself or your family members.</p>
+      
+      <div id="addDocAlert" class="alert alert-danger d-none p-2 small mb-3"></div>
+
       <form id="docForm" onsubmit="submitDoc(event)">
         <div class="row g-3 mt-1">
           <div class="col-md-6">
             <label class="form-label fw-bold small">Alert Email Address</label>
             <input type="email" id="formEmail" class="form-control" required placeholder="where notifications will be sent">
+            <small class="text-muted d-none" id="emailLockedNotice">🔒 Email is permanently linked to your mobile number and cannot be edited.</small>
           </div>
           <div class="col-md-6">
             <label class="form-label fw-bold small">Document Holder's Full Name</label>
@@ -238,7 +264,7 @@
             <input type="date" id="expiryDate" class="form-control" required>
           </div>
           <div class="col-md-6">
-            <label class="form-label fw-bold small">Alert Period</label>
+            <label class="form-label fw-bold small">When to Notify You Before Expiry?</label>
             <select id="alertDays" class="form-select">
               <option value="7">7 Days Before</option>
               <option value="15">15 Days Before</option>
@@ -261,7 +287,89 @@
 
   </div>
 
-  <!-- Pricing & Premium Plans Modal -->
+  <!-- EDIT DOCUMENT MODAL -->
+  <div class="modal fade" id="editDocModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold">Edit Document Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div id="editDocAlert" class="alert alert-danger d-none p-2 small mb-3"></div>
+          <form id="editDocForm" onsubmit="submitEditDoc(event)">
+            <input type="hidden" id="editRow">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label fw-bold small">Alert Email (Locked)</label>
+                <input type="email" id="editEmail" class="form-control locked-email-input" readonly>
+                <small class="text-muted">🔒 Email is locked to this account.</small>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold small">Person Full Name</label>
+                <input type="text" id="editPersonName" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold small">Relationship</label>
+                <select id="editRelationship" class="form-select" required>
+                  <option value="Self">Self</option>
+                  <option value="Spouse">Spouse</option>
+                  <option value="Son">Son</option>
+                  <option value="Daughter">Daughter</option>
+                  <option value="Father">Father</option>
+                  <option value="Mother">Mother</option>
+                  <option value="Other">Other Dependent</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold small">Document Type</label>
+                <select id="editDocTypeSelect" class="form-select" onchange="handleEditDocTypeChange(this)" required>
+                  <option value="Passport">Passport</option>
+                  <option value="Driving License">Driving License</option>
+                  <option value="National ID / Civil ID">National ID / Civil ID</option>
+                  <option value="Resident Card / Visa">Resident Card / Visa</option>
+                  <option value="Vehicle Insurance">Vehicle Insurance</option>
+                  <option value="Health Insurance">Health Insurance</option>
+                  <option value="Tenancy / Rent Agreement">Tenancy / Rent Agreement</option>
+                  <option value="__NEW__">+ Add Custom Document Type...</option>
+                </select>
+                <input type="text" id="editCustomDocTypeInput" class="form-control mt-2 d-none" placeholder="Enter custom type">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold small">Document Number / ID</label>
+                <input type="text" id="editDocId" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold small">Expiry Date</label>
+                <input type="date" id="editExpiryDate" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold small">Alert Period</label>
+                <select id="editAlertDays" class="form-select">
+                  <option value="7">7 Days Before</option>
+                  <option value="15">15 Days Before</option>
+                  <option value="30">30 Days Before (1 Month)</option>
+                  <option value="60">60 Days Before (2 Months)</option>
+                  <option value="90">90 Days Before (3 Months)</option>
+                  <option value="180">180 Days Before (6 Months)</option>
+                  <option value="365">365 Days Before (1 Year)</option>
+                </select>
+              </div>
+            </div>
+            <div class="d-flex justify-content-end gap-2 mt-4">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" id="saveEditBtn" class="btn btn-primary fw-bold px-4">
+                <span id="saveEditSpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pricing Modal -->
   <div class="modal fade" id="pricingModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
@@ -326,7 +434,7 @@
                   <li>✓ <strong>Unlimited Documents</strong></li>
                   <li>✓ Unlimited Dependents</li>
                   <li>✓ Lifetime Access</li>
-                  <li>✓ VIP Email Support</li>
+                  <li>✓ VIP Support</li>
                 </ul>
                 <button class="btn btn-outline-dark mt-auto fw-bold" onclick="requestUpgrade('UNLIMITED')">Select Unlimited</button>
               </div>
@@ -335,7 +443,7 @@
 
           <div class="bg-light border rounded p-3 mt-4 text-center">
             <h6 class="fw-bold text-dark mb-1">Looking for a Private System for Your Organization?</h6>
-            <p class="text-muted small mb-2">We build custom document management systems with company branding, multi-admin panels, and employee tracking.</p>
+            <p class="text-muted small mb-2">We build dedicated custom document management portals with corporate branding and multi-admin panels.</p>
             <button class="btn btn-sm btn-dark px-3 fw-bold" onclick="requestCustomOrg()">Inquire About Custom Setup</button>
           </div>
         </div>
@@ -385,20 +493,101 @@
     let activePhone = "";
     let isUserAdmin = false;
     let currentUserData = null;
+    let lockedUserEmail = "";
     let allFetchedDocs = [];
     let currentSnoozeTarget = null;
     let snoozeModalInstance = null;
     let pricingModalInstance = null;
+    let editDocModalInstance = null;
     let devEmail = "developer@example.com";
+    let resendTimerInterval = null;
 
     document.addEventListener("DOMContentLoaded", function() {
       snoozeModalInstance = new bootstrap.Modal(document.getElementById('snoozeModal'));
       pricingModalInstance = new bootstrap.Modal(document.getElementById('pricingModal'));
+      editDocModalInstance = new bootstrap.Modal(document.getElementById('editDocModal'));
     });
 
     function validatePhone(p) {
       const clean = p.replace(/[\s\-\+\(\)]/g, "");
       return /^[0-9]{7,15}$/.test(clean);
+    }
+
+    function cleanDocId(id) {
+      return String(id || "").toLowerCase().replace(/[\s\-_]/g, "");
+    }
+
+    // Helper: Show "Saved Successfully" Banner
+    function showSuccessToast(message) {
+      const alertBox = document.getElementById("globalSuccessAlert");
+      const alertText = document.getElementById("globalSuccessText");
+      alertText.innerHTML = `<strong>Success!</strong> ${message}`;
+      alertBox.classList.remove("d-none");
+      alertBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // Auto dismiss after 4.5 seconds
+      setTimeout(() => {
+        alertBox.classList.add("d-none");
+      }, 4500);
+    }
+
+    // Helper: Start 60s Resend OTP Countdown
+    function startResendCountdown(durationSeconds = 60) {
+      const resendBtn = document.getElementById("resendOtpBtn");
+      const countdownSpan = document.getElementById("countdownSpan");
+      
+      clearInterval(resendTimerInterval);
+      let remaining = durationSeconds;
+
+      resendBtn.disabled = true;
+      resendBtn.innerHTML = `Resend in <span id="countdownSpan">${remaining}</span>s`;
+
+      resendTimerInterval = setInterval(() => {
+        remaining--;
+        const span = document.getElementById("countdownSpan");
+        if (span) span.innerText = remaining;
+
+        if (remaining <= 0) {
+          clearInterval(resendTimerInterval);
+          resendBtn.disabled = false;
+          resendBtn.innerText = "Resend Code";
+        }
+      }, 1000);
+    }
+
+    function handleResendOtp() {
+      handleLookup();
+    }
+
+    // Feature: Clear Session / Logout / Start Over
+    function resetAppSession() {
+      if (!confirm("Are you sure you want to log out and start over?")) return;
+
+      clearInterval(resendTimerInterval);
+      activePhone = "";
+      isUserAdmin = false;
+      currentUserData = null;
+      lockedUserEmail = "";
+      allFetchedDocs = [];
+
+      document.getElementById("searchPhone").value = "";
+      document.getElementById("otpInput").value = "";
+      document.getElementById("phoneError").classList.add("d-none");
+      document.getElementById("otpErrorAlert").classList.add("d-none");
+      document.getElementById("globalSuccessAlert").classList.add("d-none");
+
+      // Hide all dynamic sections
+      document.getElementById("otpCard").classList.add("d-none");
+      document.getElementById("recordsSection").classList.add("d-none");
+      document.getElementById("addDocSection").classList.add("d-none");
+      document.getElementById("adminNavTabs").classList.add("d-none");
+      document.getElementById("adminUsersSection").classList.add("d-none");
+      document.getElementById("upgradeCard").classList.add("d-none");
+      document.getElementById("blockedAlertCard").classList.add("d-none");
+
+      // Show Step 1 card
+      document.getElementById("loginCard").classList.remove("d-none");
+      document.getElementById("searchPhone").focus();
     }
 
     async function apiRequest(action, data = {}) {
@@ -420,7 +609,7 @@
       document.getElementById("blockedAlertCard").classList.add("d-none");
 
       if (!validatePhone(phoneInput)) {
-        errBox.innerText = "Please enter a valid mobile number (7 to 15 digits).";
+        errBox.innerText = "Please enter a valid mobile number (7 to 15 digits, digits only).";
         errBox.classList.remove("d-none");
         return;
       }
@@ -449,14 +638,19 @@
           document.getElementById("recordsSection").classList.add("d-none");
           document.getElementById("addDocSection").classList.add("d-none");
           document.getElementById("upgradeCard").classList.add("d-none");
+          
+          // Trigger the 60s countdown
+          startResendCountdown(60);
         } else {
+          // New unregistered user
           document.getElementById("otpCard").classList.add("d-none");
-          renderGrid([], false, { plan: "FREE" }, 5);
+          renderGrid([], false, { plan: "FREE" }, 5, "");
         }
       } catch (err) {
         btn.disabled = false;
         sp.classList.add("d-none");
-        alert("Unable to reach the server. Please check your connection.");
+        errBox.innerText = "Connection error. Please check your network and try again.";
+        errBox.classList.remove("d-none");
       }
     }
 
@@ -472,45 +666,57 @@
     }
 
     async function verifyOtp() {
-      const otp = document.getElementById("otpInput").value.trim();
+      const rawOtp = document.getElementById("otpInput").value;
+      const cleanOtp = String(rawOtp || "").replace(/\D/g, "");
       const btn = document.getElementById("verifyOtpBtn");
       const sp = document.getElementById("verifySpinner");
       const errBox = document.getElementById("otpErrorAlert");
 
-      if (!otp || otp.length !== 6) {
-        errBox.innerText = "Please enter the complete 6-digit code.";
+      errBox.classList.add("d-none");
+
+      if (!cleanOtp || cleanOtp.length !== 6) {
+        errBox.innerText = "Please enter the complete 6-digit verification code.";
         errBox.classList.remove("d-none");
         return;
       }
 
       btn.disabled = true;
       sp.classList.remove("d-none");
-      errBox.classList.add("d-none");
 
-      const res = await apiRequest("verifyOtp", { phone: activePhone, otp: otp });
-      btn.disabled = false;
-      sp.classList.add("d-none");
+      try {
+        const res = await apiRequest("verifyOtp", { phone: activePhone, otp: cleanOtp });
+        btn.disabled = false;
+        sp.classList.add("d-none");
 
-      if (res.isBlocked) {
-        showBlockedScreen(res.developerEmail || devEmail);
-        return;
-      }
+        if (res.isBlocked) {
+          showBlockedScreen(res.developerEmail || devEmail);
+          return;
+        }
 
-      if (res.success) {
-        document.getElementById("otpCard").classList.add("d-none");
-        isUserAdmin = res.isAdmin;
-        currentUserData = res.user;
-        if (res.developerEmail) devEmail = res.developerEmail;
-        renderGrid(res.docs, isUserAdmin, res.user, res.planLimit);
-      } else {
-        errBox.innerText = res.message;
+        if (res.success) {
+          clearInterval(resendTimerInterval);
+          document.getElementById("otpCard").classList.add("d-none");
+          isUserAdmin = res.isAdmin;
+          currentUserData = res.user;
+          lockedUserEmail = res.lockedEmail || "";
+          if (res.developerEmail) devEmail = res.developerEmail;
+          renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail);
+        } else {
+          errBox.innerText = res.message || "Invalid or expired code.";
+          errBox.classList.remove("d-none");
+        }
+      } catch (err) {
+        btn.disabled = false;
+        sp.classList.add("d-none");
+        errBox.innerText = "Server error or timeout. Please click Verify again.";
         errBox.classList.remove("d-none");
       }
     }
 
-    function renderGrid(docs, isAdmin, user, planLimit) {
+    function renderGrid(docs, isAdmin, user, planLimit, lockedEmail) {
       allFetchedDocs = docs;
       currentUserData = user;
+      lockedUserEmail = lockedEmail || (user ? user.email : "");
       document.getElementById("recordsSection").classList.remove("d-none");
 
       const quotaBadge = document.getElementById("quotaBadge");
@@ -546,8 +752,18 @@
         }
       }
 
-      if (docs.length > 0 && docs[0].email) {
-        document.getElementById("formEmail").value = docs[0].email;
+      const emailField = document.getElementById("formEmail");
+      const lockedNotice = document.getElementById("emailLockedNotice");
+      if (lockedUserEmail) {
+        emailField.value = lockedUserEmail;
+        emailField.readOnly = true;
+        emailField.classList.add("locked-email-input");
+        lockedNotice.classList.remove("d-none");
+      } else {
+        emailField.value = "";
+        emailField.readOnly = false;
+        emailField.classList.remove("locked-email-input");
+        lockedNotice.classList.add("d-none");
       }
 
       populateDocTypeDropdown(docs);
@@ -557,26 +773,41 @@
     function populateDocTypeDropdown(docs) {
       const filterSelect = document.getElementById("filterDocType");
       const formSelect = document.getElementById("docTypeSelect");
+      const editSelect = document.getElementById("editDocTypeSelect");
       const types = Array.from(new Set(docs.map(d => d.docType).filter(Boolean)));
 
       filterSelect.innerHTML = '<option value="">All Document Types</option>';
       types.forEach(t => { filterSelect.innerHTML += `<option value="${t}">${t}</option>`; });
 
-      types.forEach(t => {
-        let exists = false;
-        for (let i = 0; i < formSelect.options.length; i++) {
-          if (formSelect.options[i].value === t) { exists = true; break; }
-        }
-        if (!exists) {
-          const opt = document.createElement("option");
-          opt.value = t; opt.text = t;
-          formSelect.insertBefore(opt, formSelect.lastElementChild);
-        }
+      [formSelect, editSelect].forEach(select => {
+        types.forEach(t => {
+          let exists = false;
+          for (let i = 0; i < select.options.length; i++) {
+            if (select.options[i].value === t) { exists = true; break; }
+          }
+          if (!exists) {
+            const opt = document.createElement("option");
+            opt.value = t; opt.text = t;
+            select.insertBefore(opt, select.lastElementChild);
+          }
+        });
       });
     }
 
     function handleDocTypeChange(select) {
       const customInput = document.getElementById("customDocTypeInput");
+      if (select.value === "__NEW__") {
+        customInput.classList.remove("d-none");
+        customInput.required = true;
+        customInput.focus();
+      } else {
+        customInput.classList.add("d-none");
+        customInput.required = false;
+      }
+    }
+
+    function handleEditDocTypeChange(select) {
+      const customInput = document.getElementById("editCustomDocTypeInput");
       if (select.value === "__NEW__") {
         customInput.classList.remove("d-none");
         customInput.required = true;
@@ -650,6 +881,8 @@
           if (now < snz) badge += ` <span class="badge bg-info text-dark">Snoozed till ${doc.snoozeUntil}</span>`;
         }
 
+        let editBtn = `<button class="btn btn-outline-primary btn-sm me-1" onclick='openEditModal(${JSON.stringify(doc)})'>Edit</button>`;
+
         let snoozeBtn = "";
         if (diffDays > 0 && doc.status !== "STOPPED") {
           snoozeBtn = `<button class="btn btn-outline-warning btn-sm me-1" onclick='openSnoozeModal(${JSON.stringify(doc)}, ${diffDays})'>Snooze</button>`;
@@ -668,17 +901,200 @@
           <td><code>${doc.docId}</code></td>
           <td>${doc.expiryDate}</td>
           <td>${badge}</td>
-          <td>${snoozeBtn}${toggleBtn}</td>
+          <td>${editBtn}${snoozeBtn}${toggleBtn}</td>
         `;
         tbody.appendChild(tr);
       });
+    }
+
+    function openEditModal(doc) {
+      document.getElementById("editRow").value = doc.row;
+      document.getElementById("editEmail").value = lockedUserEmail || doc.email;
+      document.getElementById("editPersonName").value = doc.personName;
+      document.getElementById("editRelationship").value = doc.relationship;
+      document.getElementById("editDocId").value = doc.docId;
+      document.getElementById("editExpiryDate").value = doc.expiryDate;
+      document.getElementById("editAlertDays").value = doc.alertDays;
+      document.getElementById("editDocAlert").classList.add("d-none");
+
+      const select = document.getElementById("editDocTypeSelect");
+      const customInput = document.getElementById("editCustomDocTypeInput");
+
+      let found = false;
+      for (let i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === doc.docType) {
+          select.selectedIndex = i;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        select.value = "__NEW__";
+        customInput.value = doc.docType;
+        customInput.classList.remove("d-none");
+      } else {
+        customInput.classList.add("d-none");
+      }
+
+      editDocModalInstance.show();
+    }
+
+    async function submitEditDoc(e) {
+      e.preventDefault();
+      const btn = document.getElementById("saveEditBtn");
+      const sp = document.getElementById("saveEditSpinner");
+      const errBox = document.getElementById("editDocAlert");
+
+      errBox.classList.add("d-none");
+
+      let finalDocType = document.getElementById("editDocTypeSelect").value;
+      if (finalDocType === "__NEW__") {
+        finalDocType = document.getElementById("editCustomDocTypeInput").value.trim();
+        if (!finalDocType) {
+          errBox.innerText = "Please specify a document type.";
+          errBox.classList.remove("d-none");
+          return;
+        }
+      }
+
+      const row = parseInt(document.getElementById("editRow").value, 10);
+      const newDocId = document.getElementById("editDocId").value.trim();
+
+      const targetCleanType = finalDocType.toLowerCase();
+      const targetCleanId = cleanDocId(newDocId);
+
+      const isDup = allFetchedDocs.some(d => 
+        d.row !== row && 
+        d.docType.toLowerCase() === targetCleanType && 
+        cleanDocId(d.docId) === targetCleanId
+      );
+
+      if (isDup) {
+        errBox.innerText = `Duplicate entry! Another document with Type '${finalDocType}' and ID '${newDocId}' already exists.`;
+        errBox.classList.remove("d-none");
+        return;
+      }
+
+      btn.disabled = true;
+      sp.classList.remove("d-none");
+
+      const payload = {
+        phone: activePhone,
+        row: row,
+        email: lockedUserEmail,
+        personName: document.getElementById("editPersonName").value.trim(),
+        relationship: document.getElementById("editRelationship").value,
+        docType: finalDocType,
+        docId: newDocId,
+        expiryDate: document.getElementById("editExpiryDate").value,
+        alertDays: document.getElementById("editAlertDays").value
+      };
+
+      try {
+        const res = await apiRequest("updateDocument", payload);
+        btn.disabled = false;
+        sp.classList.add("d-none");
+
+        if (res.success) {
+          editDocModalInstance.hide();
+          renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail);
+          showSuccessToast("Document updated successfully!");
+        } else {
+          errBox.innerText = res.message;
+          errBox.classList.remove("d-none");
+        }
+      } catch (err) {
+        btn.disabled = false;
+        sp.classList.add("d-none");
+        errBox.innerText = "Error saving changes. Please try again.";
+        errBox.classList.remove("d-none");
+      }
+    }
+
+    async function submitDoc(e) {
+      e.preventDefault();
+      const btn = document.getElementById("saveBtn");
+      const sp = document.getElementById("saveSpinner");
+      const alertBox = document.getElementById("addDocAlert");
+
+      alertBox.classList.add("d-none");
+
+      let finalDocType = document.getElementById("docTypeSelect").value;
+      if (finalDocType === "__NEW__") {
+        finalDocType = document.getElementById("customDocTypeInput").value.trim();
+        if (!finalDocType) {
+          alertBox.innerText = "Please specify a document type.";
+          alertBox.classList.remove("d-none");
+          return;
+        }
+      }
+
+      const docId = document.getElementById("docId").value.trim();
+
+      const targetCleanType = finalDocType.toLowerCase();
+      const targetCleanId = cleanDocId(docId);
+
+      const isDup = allFetchedDocs.some(d => 
+        d.docType.toLowerCase() === targetCleanType && 
+        cleanDocId(d.docId) === targetCleanId
+      );
+
+      if (isDup) {
+        alertBox.innerText = `Duplicate entry! A document with Type '${finalDocType}' and ID '${docId}' already exists.`;
+        alertBox.classList.remove("d-none");
+        return;
+      }
+
+      btn.disabled = true;
+      sp.classList.remove("d-none");
+
+      const payload = {
+        phone: activePhone,
+        email: lockedUserEmail || document.getElementById("formEmail").value.trim(),
+        personName: document.getElementById("personName").value.trim(),
+        relationship: document.getElementById("relationship").value,
+        docType: finalDocType,
+        docId: docId,
+        expiryDate: document.getElementById("expiryDate").value,
+        alertDays: document.getElementById("alertDays").value
+      };
+
+      try {
+        const res = await apiRequest("addDocument", payload);
+        btn.disabled = false;
+        sp.classList.add("d-none");
+
+        if (res.isBlocked) {
+          showBlockedScreen(res.developerEmail || devEmail);
+          return;
+        }
+
+        if (res.success) {
+          document.getElementById("docForm").reset();
+          document.getElementById("customDocTypeInput").classList.add("d-none");
+          renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail);
+          showSuccessToast("Document registered and saved successfully!");
+        } else {
+          alertBox.innerText = res.message;
+          alertBox.classList.remove("d-none");
+          if (res.limitReached) openPricingModal();
+        }
+      } catch (err) {
+        btn.disabled = false;
+        sp.classList.add("d-none");
+        alertBox.innerText = "Failed to save document. Please check your network and try again.";
+        alertBox.classList.remove("d-none");
+      }
     }
 
     async function toggleStatus(row, currentStatus) {
       const willStop = currentStatus !== "STOPPED";
       if (!confirm(`Are you sure you want to ${willStop ? "stop" : "turn on"} notifications for this document?`)) return;
       const res = await apiRequest("toggleStatus", { phone: activePhone, row: row, status: currentStatus });
-      if (res.success) renderGrid(res.docs, isUserAdmin, res.user, res.planLimit);
+      if (res.success) {
+        renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail);
+        showSuccessToast(willStop ? "Alerts paused for this document." : "Alerts resumed for this document.");
+      }
     }
 
     function openSnoozeModal(doc, maxDays) {
@@ -712,80 +1128,28 @@
 
       if (res.success) {
         snoozeModalInstance.hide();
-        renderGrid(res.docs, isUserAdmin, res.user, res.planLimit);
+        renderGrid(res.docs, isUserAdmin, res.user, res.planLimit, res.lockedEmail);
+        showSuccessToast(`Alert snoozed for ${days} days.`);
       } else {
         alertBox.innerText = res.message;
         alertBox.classList.remove("d-none");
       }
     }
 
-    async function submitDoc(e) {
-      e.preventDefault();
-      const btn = document.getElementById("saveBtn");
-      const sp = document.getElementById("saveSpinner");
-
-      let finalDocType = document.getElementById("docTypeSelect").value;
-      if (finalDocType === "__NEW__") {
-        finalDocType = document.getElementById("customDocTypeInput").value.trim();
-        if (!finalDocType) {
-          alert("Please enter a name for the new document type.");
-          return;
-        }
-      }
-
-      btn.disabled = true;
-      sp.classList.remove("d-none");
-
-      const payload = {
-        phone: activePhone,
-        email: document.getElementById("formEmail").value.trim(),
-        personName: document.getElementById("personName").value.trim(),
-        relationship: document.getElementById("relationship").value,
-        docType: finalDocType,
-        docId: document.getElementById("docId").value.trim(),
-        expiryDate: document.getElementById("expiryDate").value,
-        alertDays: document.getElementById("alertDays").value
-      };
-
-      const res = await apiRequest("addDocument", payload);
-      btn.disabled = false;
-      sp.classList.add("d-none");
-
-      if (res.isBlocked) {
-        showBlockedScreen(res.developerEmail || devEmail);
-        return;
-      }
-
-      if (res.success) {
-        document.getElementById("docForm").reset();
-        document.getElementById("customDocTypeInput").classList.add("d-none");
-        document.getElementById("formEmail").value = payload.email;
-        renderGrid(res.docs, isUserAdmin, res.user, res.planLimit);
-      } else {
-        alert(res.message);
-        if (res.limitReached) openPricingModal();
-      }
-    }
-
     function openPricingModal() { pricingModalInstance.show(); }
 
-    // User chooses a plan -> Sends API trigger to record request, alert admin, and notify user
     async function requestUpgrade(plan) {
       pricingModalInstance.hide();
-      alert(`Requesting ${plan} Plan for ${activePhone}...`);
-
       const res = await apiRequest("requestPlanUpgrade", { phone: activePhone, requestedPlan: plan });
       if (res.success) {
-        alert(`Success! Your request for the ${plan} Plan has been received. Our team and administrator have been notified.`);
-      } else {
-        alert("Request logged. We will contact you soon.");
+        showSuccessToast(`Upgrade request for ${plan} Plan submitted! An email notification has been dispatched.`);
       }
     }
 
     function requestCustomOrg() {
       pricingModalInstance.hide();
       const subj = encodeURIComponent(`Organization Setup Request - Document Expiry System`);
-      const body = encodeURIComponent(`Hello Developer,\n\nOur organization is interested in a custom Document Expiry and Management system.\n\nContact Phone: ${activePhone}\nOrganization Name: \nApproximate Documents/Users: \n\nPlease get in touch with us.`);
+      const body = encodeURIComponent(`Hello Developer,\n\nOur organization is interested in a custom Document Expiry and Management system.\n\nContact Phone: ${activePhone}`);
       window.location.href = `mailto:${devEmail}?subject=${subj}&body=${body}`;
     }
 
@@ -835,9 +1199,7 @@
             </select>
           </td>
           <td>${reqBadge}</td>
-          <td>
-            <span class="badge ${u.status === 'ACTIVE' ? 'bg-success' : 'bg-danger'}">${u.status}</span>
-          </td>
+          <td><span class="badge ${u.status === 'ACTIVE' ? 'bg-success' : 'bg-danger'}">${u.status}</span></td>
           <td>
             <button class="btn btn-sm ${u.status === 'ACTIVE' ? 'btn-outline-danger' : 'btn-outline-success'}" onclick="toggleUserBlock('${u.phone}', '${u.status}')">
               ${u.status === 'ACTIVE' ? 'Block User' : 'Unblock User'}
@@ -859,6 +1221,7 @@
       if (!confirm(`Confirm upgrade for ${targetPhone} to ${newPlan} plan?`)) return;
       await apiRequest("adminUpdateUser", { adminPhone: activePhone, targetPhone: targetPhone, newPlan: newPlan });
       loadAdminUsers();
+      showSuccessToast(`User plan updated to ${newPlan}.`);
     }
 
     async function toggleUserBlock(targetPhone, currentStatus) {
@@ -866,6 +1229,7 @@
       if (!confirm(`Are you sure you want to change ${targetPhone} to ${newStatus}?`)) return;
       await apiRequest("adminUpdateUser", { adminPhone: activePhone, targetPhone: targetPhone, newStatus: newStatus });
       loadAdminUsers();
+      showSuccessToast(`User status changed to ${newStatus}.`);
     }
   </script>
 </body>
